@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+/* 童课设计 token（Phase 0 §7 已定） */
+@theme {
+  --color-primary: #ea580c; /* 强调橙 */
+  --color-primary-dark: #c2410c;
+  --color-primary-soft: #fff7ed; /* 浅橙底 */
+  --color-surface: #f7f7f8; /* 页面背景 */
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+  --font-sans:
+    system-ui, -apple-system, "PingFang SC", "Helvetica Neue", "Microsoft YaHei",
+    sans-serif;
+}
+
+/* 底部安全区（iPhone 刘海 / Home Indicator） */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* 弹层/提示动画 */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0.5;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(8px) scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+.animate-sheet-up {
+  animation: sheet-up 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.animate-toast-in {
+  animation: toast-in 0.2s ease-out;
+}
+
+/* 隐藏横向滚动条（头像/星期选择等横向滚动区域） */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  @apply bg-surface font-sans text-neutral-800 antialiased;
+  overscroll-behavior-y: none;
+}
+
+/* 可交互元素禁止长按选中；表单元素最小 16px 防止 iOS 聚焦自动缩放 */
+button {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+select,
+textarea {
+  font-size: 16px;
+}
