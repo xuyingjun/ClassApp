@@ -35,7 +35,7 @@ export default function HomePage() {
     const items: TodayClassItem[] = []
 
     for (const course of courseList) {
-      if (course.status !== 'active') continue
+      if (course.status !== 'active' || (course.startDate && today < course.startDate)) continue
       for (const slot of course.weeklySchedule ?? []) {
         if (slot.weekday !== weekday) continue
         const record = todayRecords.find(

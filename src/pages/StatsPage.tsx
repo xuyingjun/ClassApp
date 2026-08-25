@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useActiveChild } from '../hooks/useActiveChild'
 import { useCourses } from '../hooks/useCourses'
@@ -18,7 +18,7 @@ function CourseRemainingRow({ course, muted = false }: { course: Course; muted?:
   const { categoryIcon } = useCourseCategories()
   const remaining = remainingLessons(course)
   return (
-    <div className={`px-4 py-3 ${muted ? 'opacity-60' : ''}`}>
+    <Link to={`/courses/${course.id}`} className={`block px-4 py-3 active:bg-neutral-50 ${muted ? 'opacity-60' : ''}`}>
       <div className="flex items-center justify-between">
         <span className="flex min-w-0 items-center gap-2 text-[15px]">
           <span>{categoryIcon(course.categoryId)}</span>
@@ -36,7 +36,7 @@ function CourseRemainingRow({ course, muted = false }: { course: Course; muted?:
         value={course.totalLessons > 0 ? course.usedLessons / course.totalLessons : 0}
         color={courseColorValue(course.color)}
       />
-    </div>
+    </Link>
   )
 }
 
@@ -80,6 +80,7 @@ export default function StatsPage() {
   const courses = useCourses(activeChild?.id)
   const records = useClassRecords(activeChild?.id)
   const today = todayStr()
+  const [period, setPeriod] = useState<'week' | 'month' | 'year' | 'total'>('week')
 
   const stats = useMemo(() => computeStats(records ?? [], today), [records, today])
   const [weekStart, weekEnd] = weekRange(today)
@@ -103,6 +104,26 @@ export default function StatsPage() {
     () => [...categoryStats.entries()].sort((a, b) => b[1].total - a[1].total),
     [categoryStats],
   )
+  const periodRecords = useMemo(() => {
+    const [start, end] =
+      period === 'week'
+        ? weekRange(today)
+        : period === 'month'
+          ? monthRange(today)
+          : period === 'year'
+            ? yearRange(today)
+            : ['', '']
+    return (records ?? [])
+      .filter((record) => {
+        if (record.status !== 'completed' && record.status !== 'makeup') return false
+        return period === 'total' || (record.date >= start && record.date <= end)
+      })
+      .sort(
+        (a, b) =>
+          b.date.localeCompare(a.date) || (b.startTime ?? '').localeCompare(a.startTime ?? ''),
+      )
+      .slice(0, 10)
+  }, [records, period, today])
 
   if (childList === undefined) return <Loading />
   if (!activeChild) {
@@ -143,26 +164,47 @@ export default function StatsPage() {
 
       {/* 本周 / 本月 / 年度 / 累计 */}
       <div className="mt-3 grid grid-cols-4 gap-2">
-        <div className="rounded-2xl bg-primary p-3 text-center text-white shadow-sm">
+        <button type="button" onClick={() => setPeriod('week')} className={`rounded-2xl p-3 text-center shadow-sm ${period === 'week' ? 'bg-primary text-white' : 'bg-white'}`}>
           <div className="text-xs opacity-80">本周</div>
           <div className="mt-0.5 text-xl font-bold tabular-nums">{stats.week}</div>
-        </div>
-        <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
+        </button>
+        <button type="button" onClick={() => setPeriod('month')} className={`rounded-2xl p-3 text-center shadow-sm ${period === 'month' ? 'bg-primary text-white' : 'bg-white'}`}>
           <div className="text-xs text-neutral-400">本月</div>
           <div className="mt-0.5 text-xl font-bold tabular-nums">{stats.month}</div>
-        </div>
-        <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
+        </button>
+        <button type="button" onClick={() => setPeriod('year')} className={`rounded-2xl p-3 text-center shadow-sm ${period === 'year' ? 'bg-primary text-white' : 'bg-white'}`}>
           <div className="text-xs text-neutral-400">年度</div>
           <div className="mt-0.5 text-xl font-bold tabular-nums">{stats.year}</div>
-        </div>
-        <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
+        </button>
+        <button type="button" onClick={() => setPeriod('total')} className={`rounded-2xl p-3 text-center shadow-sm ${period === 'total' ? 'bg-primary text-white' : 'bg-white'}`}>
           <div className="text-xs text-neutral-400">累计</div>
           <div className="mt-0.5 text-xl font-bold tabular-nums">{stats.total}</div>
-        </div>
+        </button>
       </div>
       <p className="mt-1.5 px-1 text-xs text-neutral-400">
         本周 {formatShort(weekStart)} - {formatShort(weekEnd)} · 本月 {formatShort(monthStart)} - {formatShort(monthEnd)} · 年度 {formatShort(yearStart)} - {formatShort(yearEnd)}
       </p>
+
+      <section className="mt-5">
+        <h2 className="px-1 text-sm font-semibold text-neutral-500">
+          {period === 'week' ? '本周上课情况' : period === 'month' ? '本月上课情况' : period === 'year' ? '年度上课情况' : '累计上课情况'}
+        </h2>
+        <div className="mt-2 divide-y divide-neutral-100 rounded-2xl bg-white shadow-sm">
+          {periodRecords.length > 0 ? (
+            periodRecords.map((record) => {
+              const course = courses.find((item) => item.id === record.courseId)
+              return (
+                <Link key={record.id} to={`/courses/${record.courseId}`} className="flex items-center justify-between px-4 py-3 active:bg-neutral-50">
+                  <span className="min-w-0 truncate text-sm">{record.date} · {course?.name ?? '未知课程'}</span>
+                  <span className="ml-3 shrink-0 text-sm text-neutral-400">{record.lessonCount} 节</span>
+                </Link>
+              )
+            })
+          ) : (
+            <p className="px-4 py-5 text-center text-sm text-neutral-400">该周期暂无上课记录</p>
+          )}
+        </div>
+      </section>
 
       {/* 按课程类型统计 */}
       {categoryEntries.length > 0 && (

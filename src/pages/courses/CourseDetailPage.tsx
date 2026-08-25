@@ -22,6 +22,7 @@ import { remainingLessons, type Course } from '../../types/course'
 import { COURSE_STATUS_META, WEEKDAY_LABELS, courseColorValue } from '../../constants'
 import { useCourseCategories } from '../../hooks/useCourseCategories'
 import { formatTimeRange } from '../../utils/date'
+import RecordItem from '../../components/record/RecordItem'
 
 function InfoRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -101,6 +102,15 @@ export default function CourseDetailPage() {
   const course = useCourse(id)
   const recordCount = useLiveQuery(
     async () => (id ? await db.classRecords.where('courseId').equals(id).count() : null),
+    [id],
+  )
+  const recentRecords = useLiveQuery(
+    async () =>
+      id
+        ? (await db.classRecords.where('courseId').equals(id).toArray())
+            .sort((a, b) => b.date.localeCompare(a.date) || (b.startTime ?? '').localeCompare(a.startTime ?? ''))
+            .slice(0, 10)
+        : [],
     [id],
   )
   const [renewOpen, setRenewOpen] = useState(false)
@@ -217,6 +227,21 @@ export default function CourseDetailPage() {
             {[course.startDate, course.expireDate].filter(Boolean).join(' ～ ') || '未设置'}
           </InfoRow>
           <InfoRow label="上课记录">{typeof recordCount === 'number' ? recordCount : 0} 条</InfoRow>
+        </div>
+
+        <div className="rounded-2xl bg-white shadow-sm">
+          <div className="px-4 py-3 text-sm font-semibold">最近上课记录</div>
+          {recentRecords === undefined ? (
+            <div className="px-4 pb-4 text-sm text-neutral-400">加载中...</div>
+          ) : recentRecords.length === 0 ? (
+            <div className="px-4 pb-4 text-sm text-neutral-400">暂无上课记录</div>
+          ) : (
+            <div className="divide-y divide-neutral-100">
+              {recentRecords.map((record) => (
+                <RecordItem key={record.id} record={record} course={course} onClick={() => navigate('/records')} />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 周课表 */}
