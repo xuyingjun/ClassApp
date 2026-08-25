@@ -6,8 +6,12 @@ import { useClassRecords } from '../hooks/useClassRecords'
 import { useToast } from '../hooks/useToast'
 import { computeReminders } from '../services/reminderService'
 import { remainingLessons } from '../types/course'
+import { isCourseAvailableOnDate, remainingLessons } from '../types/course'
 import { courseColorValue } from '../constants'
 import { getWeekday, todayStr } from '../utils/date'
+import { db } from '../db/database'
+import { SETTING_KEYS } from '../types/setting'
+import { useLiveQuery } from 'dexie-react-hooks'
 import ChildSwitcher from '../components/child/ChildSwitcher'
 import ChildForm from '../components/child/ChildForm'
 import TodayClassCard, { type TodayClassItem } from '../components/course/TodayClassCard'
@@ -22,6 +26,7 @@ export default function HomePage() {
   const navigate = useNavigate()
   const courses = useCourses(activeChild?.id)
   const records = useClassRecords(activeChild?.id)
+  const lastBackupAt = useLiveQuery(() => db.settings.get(SETTING_KEYS.lastBackupAt), [])
   const [childSheetOpen, setChildSheetOpen] = useState(false)
 
   const today = todayStr()
@@ -35,7 +40,7 @@ export default function HomePage() {
     const items: TodayClassItem[] = []
 
     for (const course of courseList) {
-      if (course.status !== 'active' || (course.startDate && today < course.startDate)) continue
+      if (!isCourseAvailableOnDate(course, today)) continue
       for (const slot of course.weeklySchedule ?? []) {
         if (slot.weekday !== weekday) continue
         const record = todayRecords.find(
@@ -69,6 +74,11 @@ export default function HomePage() {
 
   const activeCourses = useMemo(() => (courses ?? []).filter((c) => c.status === 'active'), [courses])
   const reminders = useMemo(() => computeReminders(courses ?? [], today), [courses, today])
+  const backupReminder = useMemo(() => {
+    if (!lastBackupAt?.value) return '还没有备份数据，建议立即导出备份'
+    const days = Math.floor((Date.now() - new Date(String(lastBackupAt.value)).getTime()) / 86400000)
+    return days >= 30 ? `已有 ${days} 天未备份数据，建议导出备份` : null
+  }, [lastBackupAt])
 
   // —— 加载态 ——
   if (childList === undefined) return <Loading />
@@ -180,6 +190,11 @@ export default function HomePage() {
             </div>
           ))}
         </section>
+      )}
+      {backupReminder && (
+        <Link to="/settings/backup" className="block rounded-2xl bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-700">
+          {backupReminder}，去数据备份 →
+        </Link>
       )}
     </div>
   )

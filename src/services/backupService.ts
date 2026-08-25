@@ -6,6 +6,7 @@ import { OLD_CATEGORY_KEY_TO_ID } from '../constants'
 import { recalculateAllCourseUsage, refreshCourseStatus } from './courseService'
 import { buildDefaultCategories } from './courseCategoryService'
 import { todayStr } from '../utils/date'
+import { SETTING_KEYS } from '../types/setting'
 
 // —— zod 结构校验（导入安全的第一道防线，Phase 0 §5.6）——
 
@@ -117,6 +118,48 @@ const backupSchemaV1 = z
   .strict()
 
 export interface ImportResult {
+
+  export interface BackupSummary {
+    version: number
+    exportedAt: string
+    children: number
+    courses: number
+    classRecords: number
+  }
+
+  export function inspectBackup(json: unknown): { ok: true; summary: BackupSummary } | { ok: false; error: string } {
+    const probeVersion =
+      typeof json === 'object' && json !== null ? (json as { version?: unknown }).version : undefined
+    if (probeVersion === 1) {
+      const parsed = backupSchemaV1.safeParse(json)
+      if (!parsed.success) return { ok: false, error: formatZodError(parsed.error) }
+      return {
+        ok: true,
+        summary: {
+          version: parsed.data.version,
+          exportedAt: parsed.data.exportedAt,
+          children: parsed.data.children.length,
+          courses: parsed.data.courses.length,
+          classRecords: parsed.data.classRecords.length,
+        },
+      }
+    }
+    const parsed = backupSchemaV2.safeParse(json)
+    if (!parsed.success) return { ok: false, error: formatZodError(parsed.error) }
+    if (parsed.data.version > BACKUP_VERSION) {
+      return { ok: false, error: `备份版本 ${parsed.data.version} 高于当前应用支持的版本，请升级应用` }
+    }
+    return {
+      ok: true,
+      summary: {
+        version: parsed.data.version,
+        exportedAt: parsed.data.exportedAt,
+        children: parsed.data.children.length,
+        courses: parsed.data.courses.length,
+        classRecords: parsed.data.classRecords.length,
+      },
+    }
+  }
   ok: boolean
   error?: string // 校验失败原因（此时当前数据零改动）
   orphanRecords?: number // 被跳过的孤儿记录数
@@ -166,6 +209,10 @@ export function downloadBackup(data: BackupData): void {
 
 // 复制到剪贴板（备用通道）
 export async function copyBackupToClipboard(data: BackupData): Promise<boolean> {
+
+  export async function markBackupCompleted(): Promise<void> {
+    await db.settings.put({ key: SETTING_KEYS.lastBackupAt, value: new Date().toISOString() })
+  }
   try {
     await navigator.clipboard.writeText(JSON.stringify(data))
     return true

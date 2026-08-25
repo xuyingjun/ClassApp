@@ -46,7 +46,8 @@ export async function addCourse(input: CourseInput): Promise<Course> {
         id: nanoid(),
         childId: input.childId,
         courseId: course.id,
-        date: input.startDate ?? todayStr(),
+          // 历史已用课时不能落在未来；未来开课时记在今天，避免生成未来上课记录
+          date: input.startDate && input.startDate <= todayStr() ? input.startDate : todayStr(),
         lessonCount: input.usedLessons,
         status: 'completed',
         note: '创建课程时录入的已用课时',

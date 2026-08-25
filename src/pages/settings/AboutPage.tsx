@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import PageHeader from '../../components/layout/PageHeader'
+import Button from '../../components/ui/Button'
 
 const VERSION = '0.1.0'
 
@@ -20,6 +21,32 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 export default function AboutPage() {
   const [installed, setInstalled] = useState(false)
   const [storage, setStorage] = useState<{ usage: number; quota: number } | null>(null)
+  const [updateMessage, setUpdateMessage] = useState('')
+  const [resourceBusy, setResourceBusy] = useState(false)
+
+  const checkUpdate = async () => {
+    if (!('serviceWorker' in navigator)) {
+      setUpdateMessage('当前环境不支持 PWA 更新')
+      return
+    }
+    const registrations = await navigator.serviceWorker.getRegistrations()
+    await Promise.all(registrations.map((registration) => registration.update()))
+    setUpdateMessage('已检查更新，请重新打开应用确认最新版本')
+  }
+
+  const refreshResources = async () => {
+    setResourceBusy(true)
+    try {
+      const keys = await caches.keys()
+      await Promise.all(keys.map((key) => caches.delete(key)))
+      const registrations = await navigator.serviceWorker?.getRegistrations()
+      await Promise.all((registrations ?? []).map((registration) => registration.unregister()))
+      setUpdateMessage('应用资源已刷新，正在重新加载')
+      window.location.reload()
+    } finally {
+      setResourceBusy(false)
+    }
+  }
 
   useEffect(() => {
     const standalone =
@@ -49,6 +76,19 @@ export default function AboutPage() {
             {storage ? `${formatBytes(storage.usage)} / ${formatBytes(storage.quota)}` : '计算中...'}
           </Row>
           <Row label="应用版本">v{VERSION}</Row>
+        </div>
+
+        <div className="rounded-2xl bg-white p-4 shadow-sm">
+          <div className="flex gap-3">
+            <Button variant="secondary" className="flex-1" onClick={() => void checkUpdate()}>
+              检测更新
+            </Button>
+            <Button variant="secondary" className="flex-1" loading={resourceBusy} onClick={() => void refreshResources()}>
+              刷新应用资源
+            </Button>
+          </div>
+          {updateMessage && <p className="mt-3 text-center text-xs text-neutral-400">{updateMessage}</p>}
+          <p className="mt-3 text-xs leading-5 text-neutral-400">刷新应用资源不会删除孩子、课程和上课记录，但需要联网重新加载应用。</p>
         </div>
 
         {!installed && (

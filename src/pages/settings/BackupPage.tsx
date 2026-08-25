@@ -1,3 +1,4 @@
+import { useLiveQuery } from 'dexie-react-hooks'
 import { useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PageHeader from '../../components/layout/PageHeader'
@@ -10,8 +11,12 @@ import {
   downloadBackup,
   exportAll,
   importBackup,
+  inspectBackup,
+  markBackupCompleted,
 } from '../../services/backupService'
 import { recalculateAllCourseUsage } from '../../services/courseService'
+import { db } from '../../db/database'
+import { SETTING_KEYS } from '../../types/setting'
 
 function Card({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
@@ -31,11 +36,15 @@ export default function BackupPage() {
   const [clearOpen, setClearOpen] = useState(false)
   const [clearBusy, setClearBusy] = useState(false)
   const [repairBusy, setRepairBusy] = useState(false)
+  const [importSummary, setImportSummary] = useState<{ json: unknown; text: string } | null>(null)
+  const [importBusy, setImportBusy] = useState(false)
+  const lastBackupAt = useLiveQuery(() => db.settings.get(SETTING_KEYS.lastBackupAt), [])
 
   const handleExport = async () => {
     try {
       const data = await exportAll()
       downloadBackup(data)
+      await markBackupCompleted()
       toast.showToast('已导出备份文件', 'success')
     } catch {
       toast.showToast('导出失败，请重试', 'error')
@@ -46,6 +55,7 @@ export default function BackupPage() {
     try {
       const data = await exportAll()
       const ok = await copyBackupToClipboard(data)
+      if (ok) await markBackupCompleted()
       toast.showToast(ok ? '已复制 JSON 到剪贴板' : '复制失败，请改用下载文件', ok ? 'success' : 'error')
     } catch {
       toast.showToast('导出失败，请重试', 'error')
@@ -59,19 +69,32 @@ export default function BackupPage() {
     try {
       const text = await file.text()
       const json: unknown = JSON.parse(text)
-      const result = await importBackup(json)
-      if (result.ok) {
-        toast.showToast(
-          result.orphanRecords
-            ? `数据恢复成功（跳过 ${result.orphanRecords} 条无效记录）`
-            : '数据恢复成功',
-          'success',
-        )
-      } else {
-        toast.showToast(result.error ?? '导入失败', 'error')
+      const inspected = inspectBackup(json)
+      if (!inspected.ok) {
+        toast.showToast(inspected.error, 'error')
+        return
       }
+      const { summary } = inspected
+      setImportSummary({
+        json,
+        text: `备份时间：${summary.exportedAt}\n孩子：${summary.children} 人，课程：${summary.courses} 门，记录：${summary.classRecords} 条`,
+      })
     } catch {
       toast.showToast('文件格式不正确，请选择导出的 JSON 备份', 'error')
+    }
+  }
+
+  const handleImportConfirm = async () => {
+    if (!importSummary) return
+    setImportBusy(true)
+    try {
+      const result = await importBackup(importSummary.json)
+      if (result.ok) {
+        setImportSummary(null)
+        toast.showToast(result.orphanRecords ? `数据恢复成功（跳过 ${result.orphanRecords} 条无效记录）` : '数据恢复成功', 'success')
+      } else toast.showToast(result.error ?? '导入失败', 'error')
+    } finally {
+      setImportBusy(false)
     }
   }
 
@@ -108,6 +131,11 @@ export default function BackupPage() {
     <div className="mx-auto min-h-dvh max-w-lg">
       <PageHeader title="数据备份" />
       <div className="space-y-3 p-4">
+        <Card title="备份状态">
+          <p className="text-sm text-neutral-500">
+            {lastBackupAt?.value ? `上次备份：${new Date(String(lastBackupAt.value)).toLocaleString()}` : '尚未备份数据'}
+          </p>
+        </Card>
         <Card
           title="导出数据"
           description="下载 JSON 备份文件（也可复制到剪贴板）。建议定期备份，并保存到 iCloud 或网盘。"
@@ -145,6 +173,17 @@ export default function BackupPage() {
           </Button>
         </Card>
       </div>
+
+      <ConfirmDialog
+        open={importSummary !== null}
+        title="确认恢复数据"
+        message={`${importSummary?.text ?? ''}\n\n恢复会覆盖当前所有孩子、课程和记录，建议先导出当前数据。`}
+        confirmLabel="确认恢复"
+        confirmVariant="primary"
+        busy={importBusy}
+        onCancel={() => setImportSummary(null)}
+        onConfirm={() => void handleImportConfirm()}
+      />
 
       <ConfirmDialog
         open={clearOpen}

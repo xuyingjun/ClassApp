@@ -6,4 +6,5 @@ export interface Setting {
 
 export const SETTING_KEYS = {
   selectedChildId: 'selectedChildId',
+  lastBackupAt: 'lastBackupAt',
 } as const

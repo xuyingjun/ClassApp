@@ -33,3 +33,11 @@ export interface Course {
 export function remainingLessons(course: Course): number {
   return Math.max(0, course.totalLessons - course.usedLessons)
 }
+// 首页课表可展示的日期范围（状态仍由课程当前状态控制）
+export function isCourseAvailableOnDate(course: Course, date: string): boolean {
+  return (
+    course.status === 'active' &&
+    (!course.startDate || date >= course.startDate) &&
+    (!course.expireDate || date <= course.expireDate)
+  )
+}
