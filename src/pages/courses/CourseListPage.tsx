@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useActiveChild } from '../../hooks/useActiveChild'
 import { useCourses } from '../../hooks/useCourses'
 import CourseCard from '../../components/course/CourseCard'
@@ -12,7 +12,7 @@ type CourseTab = 'active' | 'archived'
 
 // 课程列表：进行中 / 已归档（结课、过期、停用）
 export default function CourseListPage() {
-  const { activeChild } = useActiveChild()
+  const { childList, activeChild } = useActiveChild()
   const courses = useCourses(activeChild?.id)
   const navigate = useNavigate()
   const [tab, setTab] = useState<CourseTab>('active')
@@ -25,7 +25,27 @@ export default function CourseListPage() {
     }
   }, [courses])
 
-  if (!activeChild || courses === undefined) return <Loading />
+  if (childList === undefined) return <Loading />
+  if (!activeChild) {
+    return (
+      <div className="p-4">
+        <h1 className="text-xl font-bold">课程</h1>
+        <div className="mt-3">
+          <EmptyState
+            emoji="👧"
+            title="还没有添加孩子"
+            description="请先在首页添加孩子"
+            action={
+              <Link to="/">
+                <Button>去首页添加</Button>
+              </Link>
+            }
+          />
+        </div>
+      </div>
+    )
+  }
+  if (courses === undefined) return <Loading />
 
   const shown = tab === 'active' ? activeList : archivedList
 

@@ -74,16 +74,15 @@ export default function HomePage() {
   if (childList === undefined) return <Loading />
   if (activeChild && (courses === undefined || records === undefined)) return <Loading />
 
-  // —— 空状态：还没有孩子 → 引导添加 ——
+  // —— 空状态：首次使用 → 引导添加孩子 ——
   if (!activeChild) {
     return (
       <div className="flex min-h-[70dvh] flex-col items-center justify-center p-8 text-center">
         <div className="text-6xl">📚</div>
         <h1 className="mt-4 text-2xl font-bold">欢迎使用童课</h1>
-        <p className="mt-2 text-sm leading-6 text-neutral-500">
-          记录孩子每一节课，
-          <br />
-          随时知道课程还剩多少节
+        <p className="mt-2 text-[15px] font-medium">还没有添加孩子</p>
+        <p className="mt-1 text-sm leading-6 text-neutral-400">
+          添加孩子后即可开始记录课程
         </p>
         <Button className="mt-8 w-full max-w-xs" onClick={() => setChildSheetOpen(true)}>
           添加孩子

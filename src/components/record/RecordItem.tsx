@@ -1,6 +1,7 @@
 import type { ClassRecord } from '../../types/classRecord'
 import type { Course } from '../../types/course'
-import { RECORD_STATUS_META, categoryEmoji } from '../../constants'
+import { RECORD_STATUS_META } from '../../constants'
+import { useCourseCategories } from '../../hooks/useCourseCategories'
 import { formatTimeRange } from '../../utils/date'
 
 interface RecordItemProps {
@@ -11,6 +12,7 @@ interface RecordItemProps {
 
 // 记录行：时间 + 课程 + 状态 + 课时（列表与日历日视图共用）
 export default function RecordItem({ record, course, onClick }: RecordItemProps) {
+  const { categoryIcon } = useCourseCategories()
   const meta = RECORD_STATUS_META[record.status]
   return (
     <button
@@ -22,7 +24,7 @@ export default function RecordItem({ record, course, onClick }: RecordItemProps)
         {formatTimeRange(record.startTime, record.endTime) || '--:--'}
       </span>
       <span className="min-w-0 flex-1 truncate text-[15px]">
-        {categoryEmoji(course?.category ?? 'other')} {course?.name ?? '未知课程'}
+        {categoryIcon(course?.categoryId)} {course?.name ?? '未知课程'}
       </span>
       <span
         className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium"

@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom'
 
 const ITEMS = [
-  { to: '/settings/children', label: '孩子管理', desc: 'Phase 3+ 实现' },
-  { to: '/settings/backup', label: '数据备份', desc: 'Phase 9 实现' },
+  { to: '/settings/children', label: '孩子管理', desc: '增删改与切换' },
+  { to: '/settings/categories', label: '课程类型', desc: '自定义课程类型' },
+  { to: '/settings/backup', label: '数据备份', desc: '导出 / 恢复 / 清空' },
   { to: '/settings/about', label: '关于', desc: 'PWA 信息与版本' },
 ]
 

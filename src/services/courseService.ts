@@ -7,7 +7,7 @@ import { todayStr } from '../utils/date'
 export interface CourseInput {
   childId: string
   name: string
-  category: string
+  categoryId: string // 关联 CourseCategory，不直接保存名称
   teacher?: string
   institution?: string
   totalLessons: number

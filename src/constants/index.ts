@@ -1,27 +1,39 @@
 import type { ClassRecordStatus } from '../types/classRecord'
 import type { CourseStatus } from '../types/course'
 
-// 课程类别（预设枚举）
-export const COURSE_CATEGORIES = [
-  { key: 'english', label: '英语', emoji: '🔤' },
-  { key: 'piano', label: '钢琴', emoji: '🎹' },
-  { key: 'dance', label: '舞蹈', emoji: '💃' },
-  { key: 'art', label: '绘画', emoji: '🎨' },
-  { key: 'coding', label: '编程', emoji: '💻' },
-  { key: 'sports', label: '体育', emoji: '⚽' },
-  { key: 'math', label: '数学', emoji: '🧮' },
-  { key: 'other', label: '其他', emoji: '📖' },
+// 默认课程类型（首次启动时的程序建议；用户可自由增删改）
+// id 为确定性值，供 v1→v2 迁移与旧备份导入映射使用
+export const DEFAULT_CATEGORY_DEFS = [
+  { id: 'cat-english', name: '英语', icon: '🔤' },
+  { id: 'cat-piano', name: '钢琴', icon: '🎹' },
+  { id: 'cat-dance', name: '舞蹈', icon: '💃' },
+  { id: 'cat-art', name: '美术', icon: '🎨' },
+  { id: 'cat-wushu', name: '武术', icon: '🥋' },
+  { id: 'cat-writing', name: '写字', icon: '✍️' },
+  { id: 'cat-other', name: '其他', icon: '📖' },
 ] as const
 
-export function categoryLabel(key: string): string {
-  return COURSE_CATEGORIES.find((c) => c.key === key)?.label ?? '其他'
+// 旧版本 course.category 枚举 key → 新默认类型 id（数据库 v1→v2 与旧备份导入用）
+export const OLD_CATEGORY_KEY_TO_ID: Record<string, string> = {
+  english: 'cat-english',
+  piano: 'cat-piano',
+  dance: 'cat-dance',
+  art: 'cat-art',
+  coding: 'cat-other',
+  sports: 'cat-other',
+  math: 'cat-other',
+  other: 'cat-other',
 }
 
-export function categoryEmoji(key: string): string {
-  return COURSE_CATEGORIES.find((c) => c.key === key)?.emoji ?? '📖'
-}
+// 自定义课程类型的图标候选（emoji）
+export const CATEGORY_ICON_OPTIONS = [
+  '📖', '🔤', '🎹', '💃', '🎨', '🥋',
+  '✍️', '⚽', '🏀', '♟️', '🧩', '🤖',
+  '🔬', '🎻', '🧮', '🗣️', '🎤', '🏊',
+  '🧘', '🛼', '📐', '🌍', '🎬', '🍳',
+] as const
 
-// 课程卡片色板（克制配色，仅作卡片点缀）
+// 课程/类型色板（克制配色，仅作点缀）
 export const COURSE_COLORS = [
   { key: 'orange', value: '#EA580C' },
   { key: 'blue', value: '#2563EB' },

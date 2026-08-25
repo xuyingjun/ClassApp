@@ -1,4 +1,5 @@
 import { useRef, useState, type ChangeEvent, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import PageHeader from '../../components/layout/PageHeader'
 import Button from '../../components/ui/Button'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
@@ -25,6 +26,7 @@ function Card({ title, description, children }: { title: string; description?: s
 // 数据备份：导出 / 导入（校验失败零破坏）/ 清空（自动先备份）/ 数据修复
 export default function BackupPage() {
   const toast = useToast()
+  const navigate = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
   const [clearOpen, setClearOpen] = useState(false)
   const [clearBusy, setClearBusy] = useState(false)
@@ -82,6 +84,7 @@ export default function BackupPage() {
       await clearAllData()
       setClearOpen(false)
       toast.showToast('已清空（备份已下载）', 'success')
+      navigate('/') // 回到首次使用/空状态页面
     } catch {
       toast.showToast('清空失败，请重试', 'error')
     } finally {
@@ -146,7 +149,7 @@ export default function BackupPage() {
       <ConfirmDialog
         open={clearOpen}
         title="清空所有数据"
-        message="将删除本设备的全部数据，且会自动下载一份备份。确定继续吗？"
+        message="此操作将删除所有孩子、课程、上课记录和统计数据，且无法撤销。清空前会自动下载一份备份。"
         confirmLabel="清空"
         busy={clearBusy}
         onCancel={() => setClearOpen(false)}

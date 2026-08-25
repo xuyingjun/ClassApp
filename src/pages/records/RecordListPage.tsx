@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useActiveChild } from '../../hooks/useActiveChild'
 import { useCourses } from '../../hooks/useCourses'
 import { useClassRecords } from '../../hooks/useClassRecords'
@@ -23,7 +24,7 @@ const selectCls =
 
 // 上课记录：列表（筛选 + 分组）/ 日历（● 标记 + 日详情）+ 补录/编辑/删除
 export default function RecordListPage() {
-  const { activeChild } = useActiveChild()
+  const { childList, activeChild } = useActiveChild()
   const courses = useCourses(activeChild?.id)
   const records = useClassRecords(activeChild?.id)
   const toast = useToast()
@@ -81,7 +82,27 @@ export default function RecordListPage() {
     [records, selectedDate],
   )
 
-  if (!activeChild || records === undefined || courses === undefined) return <Loading />
+  if (childList === undefined) return <Loading />
+  if (!activeChild) {
+    return (
+      <div className="p-4">
+        <h1 className="text-xl font-bold">记录</h1>
+        <div className="mt-3">
+          <EmptyState
+            emoji="👧"
+            title="还没有添加孩子"
+            description="请先在首页添加孩子"
+            action={
+              <Link to="/">
+                <Button>去首页添加</Button>
+              </Link>
+            }
+          />
+        </div>
+      </div>
+    )
+  }
+  if (records === undefined || courses === undefined) return <Loading />
 
   const openNew = () => {
     setEditing(null)

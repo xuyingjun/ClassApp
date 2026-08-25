@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import PageHeader from '../../components/layout/PageHeader'
-import { seedDemoData } from '../../db/seed'
 
 const VERSION = '0.1.0'
 
@@ -63,19 +62,6 @@ export default function AboutPage() {
             <p className="mt-1 text-xs opacity-80">
               安装后像 App 一样全屏使用，且 Safari 不会清理本应用的离线数据。
             </p>
-          </div>
-        )}
-
-        {import.meta.env.DEV && (
-          <div className="border-t border-neutral-100 pt-4">
-            <p className="text-center text-xs text-neutral-400">开发工具</p>
-            <button
-              type="button"
-              onClick={() => void seedDemoData().then(() => window.alert('演示数据已填充，请回到首页查看'))}
-              className="mt-2 flex min-h-12 w-full items-center justify-center rounded-xl bg-primary-soft font-medium text-primary active:bg-orange-100"
-            >
-              填充演示数据
-            </button>
           </div>
         )}
       </div>

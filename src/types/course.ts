@@ -12,7 +12,7 @@ export interface Course {
   id: string
   childId: string
   name: string
-  category: string // 预设类别 key，见 constants/courseCategories
+  categoryId: string // 关联 CourseCategory（修改类型名称时所有课程自动跟随）
   teacher?: string
   institution?: string
   totalLessons: number

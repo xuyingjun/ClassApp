@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react'
-import { COURSE_CATEGORIES, COURSE_COLORS, DEFAULT_DURATION_MINUTES } from '../../constants'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { COURSE_COLORS, DEFAULT_DURATION_MINUTES } from '../../constants'
 import { useToast } from '../../hooks/useToast'
+import { useCourseCategories } from '../../hooks/useCourseCategories'
 import { addCourse, updateCourse } from '../../services/courseService'
 import type { Course, WeeklySlot } from '../../types/course'
 import Button from '../ui/Button'
@@ -21,8 +22,9 @@ const toInt = (s: string): number | undefined => {
 // 课程表单（新增/编辑共用，整页展示）
 export default function CourseForm({ childId, initial, onSaved }: CourseFormProps) {
   const toast = useToast()
+  const { categories, activeCategories } = useCourseCategories()
   const [name, setName] = useState(initial?.name ?? '')
-  const [category, setCategory] = useState(initial?.category ?? COURSE_CATEGORIES[0].key)
+  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '')
   const [teacher, setTeacher] = useState(initial?.teacher ?? '')
   const [institution, setInstitution] = useState(initial?.institution ?? '')
   const [totalLessons, setTotalLessons] = useState(initial ? String(initial.totalLessons) : '')
@@ -37,6 +39,23 @@ export default function CourseForm({ childId, initial, onSaved }: CourseFormProp
   const [slots, setSlots] = useState<WeeklySlot[]>(initial?.weeklySchedule ?? [])
   const [note, setNote] = useState(initial?.note ?? '')
   const [busy, setBusy] = useState(false)
+
+  // 可选项 = 启用类型（编辑时若原类型已停用，仍保留在列表中供选择）
+  const categoryOptions = useMemo(() => {
+    if (!initial) return activeCategories
+    const current = categories?.find((c) => c.id === initial.categoryId)
+    if (current && current.status === 'inactive' && !activeCategories.some((c) => c.id === current.id)) {
+      return [current, ...activeCategories]
+    }
+    return activeCategories
+  }, [initial, categories, activeCategories])
+
+  // 类型加载完成后自动选中第一个启用类型
+  useEffect(() => {
+    if (!categoryId && activeCategories.length > 0) {
+      setCategoryId(activeCategories[0].id)
+    }
+  }, [categoryId, activeCategories])
 
   const addSlot = () => setSlots([...slots, { weekday: 1, startTime: '' }])
   const patchSlot = (index: number, patch: Partial<WeeklySlot>) =>
@@ -67,9 +86,18 @@ export default function CourseForm({ childId, initial, onSaved }: CourseFormProp
     // 过滤掉未填写时间的课表时段
     const validSlots = slots.filter((s) => s.startTime)
 
+    // 提交时校验类型仍可选（防止历史数据指向已删除的类型）
+    const finalCategoryId = categoryOptions.some((c) => c.id === categoryId)
+      ? categoryId
+      : activeCategories[0]?.id
+    if (!finalCategoryId) {
+      toast.showToast('请先到「我的 → 课程类型」添加课程类型', 'error')
+      return
+    }
+
     const input = {
       name: trimmedName,
-      category,
+      categoryId: finalCategoryId,
       teacher: teacher.trim() || undefined,
       institution: institution.trim() || undefined,
       totalLessons: total,
@@ -113,24 +141,30 @@ export default function CourseForm({ childId, initial, onSaved }: CourseFormProp
       </label>
 
       <div>
-        <span className="text-sm font-medium">课程类别</span>
-        <div className="mt-1.5 grid grid-cols-4 gap-2">
-          {COURSE_CATEGORIES.map((c) => (
+        <span className="text-sm font-medium">课程类型</span>
+        <div className="mt-1.5 grid grid-cols-3 gap-2">
+          {categoryOptions.map((c) => (
             <button
               type="button"
-              key={c.key}
-              onClick={() => setCategory(c.key)}
-              className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-xs transition ${
-                category === c.key
+              key={c.id}
+              onClick={() => setCategoryId(c.id)}
+              className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-xs transition ${
+                categoryId === c.id
                   ? 'bg-primary-soft text-primary ring-1 ring-primary'
                   : 'bg-neutral-100 text-neutral-500'
               }`}
             >
-              <span className="text-lg">{c.emoji}</span>
-              {c.label}
+              <span className="text-lg">{c.icon}</span>
+              <span className="truncate">
+                {c.name}
+                {c.status === 'inactive' ? '（已停用）' : ''}
+              </span>
             </button>
           ))}
         </div>
+        {categoryOptions.length === 0 && (
+          <p className="mt-1.5 text-xs text-neutral-400">暂无可用类型，请先到「我的 → 课程类型」添加</p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">

@@ -3,9 +3,10 @@ import type { Course } from '../../types/course'
 import type { ClassRecord } from '../../types/classRecord'
 import { isCountedStatus } from '../../types/classRecord'
 import { remainingLessons } from '../../types/course'
-import { RECORD_STATUS_META, categoryEmoji } from '../../constants'
+import { RECORD_STATUS_META } from '../../constants'
 import { db } from '../../db/database'
 import { useToast } from '../../hooks/useToast'
+import { useCourseCategories } from '../../hooks/useCourseCategories'
 import { recordLesson, DuplicateRecordError } from '../../services/classRecordService'
 import { todayStr } from '../../utils/date'
 import Button from '../ui/Button'
@@ -22,6 +23,7 @@ export interface TodayClassItem {
 // 一键记课：UI 立即禁用（防连点）+ DB 事务查重（双层防线，Phase 0 §5.1）
 export default function TodayClassCard({ item }: { item: TodayClassItem }) {
   const toast = useToast()
+  const { categoryIcon } = useCourseCategories()
   const [busy, setBusy] = useState(false)
   const { course, startTime, endTime, record } = item
   const statusMeta = record ? RECORD_STATUS_META[record.status] : null
@@ -56,7 +58,7 @@ export default function TodayClassCard({ item }: { item: TodayClassItem }) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-[15px] font-medium">
-          <span>{categoryEmoji(course.category)}</span>
+          <span>{categoryIcon(course.categoryId)}</span>
           <span className="truncate">{course.name}</span>
         </div>
         {course.teacher && <div className="mt-0.5 truncate text-xs text-neutral-400">{course.teacher}</div>}

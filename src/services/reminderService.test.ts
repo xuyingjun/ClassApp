@@ -11,7 +11,7 @@ function course(partial: Partial<Course>): Course {
     id: `c${++seq}`,
     childId: 'child',
     name: partial.name ?? '课程',
-    category: 'other',
+    categoryId: 'cat-other',
     totalLessons: 20,
     usedLessons: 5,
     status: 'active',

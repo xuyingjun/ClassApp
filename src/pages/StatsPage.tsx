@@ -1,23 +1,27 @@
 import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { useActiveChild } from '../hooks/useActiveChild'
 import { useCourses } from '../hooks/useCourses'
 import { useClassRecords } from '../hooks/useClassRecords'
-import { computeStats } from '../utils/statistics'
+import { useCourseCategories } from '../hooks/useCourseCategories'
+import { computeStats, computeStatsByCategory, yearRange, type CategoryStats } from '../utils/statistics'
 import { remainingLessons } from '../types/course'
-import { courseColorValue, COURSE_STATUS_META, categoryEmoji } from '../constants'
+import { courseColorValue, COURSE_STATUS_META } from '../constants'
 import { formatShort, monthRange, todayStr, weekRange } from '../utils/date'
 import Loading from '../components/ui/Loading'
 import EmptyState from '../components/ui/EmptyState'
 import ProgressBar from '../components/ui/ProgressBar'
+import Button from '../components/ui/Button'
 import type { Course } from '../types/course'
 
 function CourseRemainingRow({ course, muted = false }: { course: Course; muted?: boolean }) {
+  const { categoryIcon } = useCourseCategories()
   const remaining = remainingLessons(course)
   return (
     <div className={`px-4 py-3 ${muted ? 'opacity-60' : ''}`}>
       <div className="flex items-center justify-between">
         <span className="flex min-w-0 items-center gap-2 text-[15px]">
-          <span>{categoryEmoji(course.category)}</span>
+          <span>{categoryIcon(course.categoryId)}</span>
           <span className="truncate">{course.name}</span>
           {muted && (
             <span className="shrink-0 text-[11px] text-neutral-400">{COURSE_STATUS_META[course.status].label}</span>
@@ -36,9 +40,43 @@ function CourseRemainingRow({ course, muted = false }: { course: Course; muted?:
   )
 }
 
-// 统计：本周 / 本月 / 累计 + 各课程剩余课时（纯 CSS 进度条）
+function MiniStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg bg-neutral-50 py-1.5 text-center">
+      <div className="text-base font-bold tabular-nums">{value}</div>
+      <div className="text-[10px] text-neutral-400">{label}</div>
+    </div>
+  )
+}
+
+function CategoryStatRow({ categoryId, stats }: { categoryId: string; stats: CategoryStats }) {
+  const { categoryMap } = useCourseCategories()
+  const cat = categoryMap.get(categoryId)
+  const color = courseColorValue(cat?.color)
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center gap-2">
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-base"
+          style={{ backgroundColor: `${color}1A` }}
+        >
+          {cat?.icon ?? '📖'}
+        </span>
+        <span className="min-w-0 truncate text-[15px] font-medium">{cat?.name ?? '未分类'}</span>
+      </div>
+      <div className="mt-2 grid grid-cols-4 gap-1.5">
+        <MiniStat label="本周" value={stats.week} />
+        <MiniStat label="本月" value={stats.month} />
+        <MiniStat label="年度" value={stats.year} />
+        <MiniStat label="累计" value={stats.total} />
+      </div>
+    </div>
+  )
+}
+
+// 统计：本周 / 本月 / 年度 / 累计 + 各课程剩余 + 按课程类型统计（纯 CSS）
 export default function StatsPage() {
-  const { activeChild } = useActiveChild()
+  const { childList, activeChild } = useActiveChild()
   const courses = useCourses(activeChild?.id)
   const records = useClassRecords(activeChild?.id)
   const today = todayStr()
@@ -46,11 +84,47 @@ export default function StatsPage() {
   const stats = useMemo(() => computeStats(records ?? [], today), [records, today])
   const [weekStart, weekEnd] = weekRange(today)
   const [monthStart, monthEnd] = monthRange(today)
+  const [yearStart, yearEnd] = yearRange(today)
 
   const activeCourses = useMemo(() => (courses ?? []).filter((c) => c.status === 'active'), [courses])
   const archivedCourses = useMemo(() => (courses ?? []).filter((c) => c.status !== 'active' && c.status !== 'inactive'), [courses])
 
-  if (!activeChild || records === undefined || courses === undefined) return <Loading />
+  // 按类型统计：courseId → categoryId
+  const courseCategoryMap = useMemo(
+    () => new Map((courses ?? []).map((c) => [c.id, c.categoryId])),
+    [courses],
+  )
+  const categoryStats = useMemo(
+    () => computeStatsByCategory(records ?? [], courseCategoryMap, today),
+    [records, courseCategoryMap, today],
+  )
+  // 按累计课时降序展示
+  const categoryEntries = useMemo(
+    () => [...categoryStats.entries()].sort((a, b) => b[1].total - a[1].total),
+    [categoryStats],
+  )
+
+  if (childList === undefined) return <Loading />
+  if (!activeChild) {
+    return (
+      <div className="p-4">
+        <h1 className="text-xl font-bold">统计</h1>
+        <div className="mt-3">
+          <EmptyState
+            emoji="👧"
+            title="还没有添加孩子"
+            description="请先在首页添加孩子"
+            action={
+              <Link to="/">
+                <Button>去首页添加</Button>
+              </Link>
+            }
+          />
+        </div>
+      </div>
+    )
+  }
+  if (records === undefined || courses === undefined) return <Loading />
 
   if (courses.length === 0) {
     return (
@@ -67,27 +141,40 @@ export default function StatsPage() {
     <div className="p-4">
       <h1 className="text-xl font-bold">统计</h1>
 
-      {/* 本周 / 本月 / 累计 */}
-      <div className="mt-3 grid grid-cols-3 gap-3">
-        <div className="rounded-2xl bg-primary p-4 text-center text-white shadow-sm">
+      {/* 本周 / 本月 / 年度 / 累计 */}
+      <div className="mt-3 grid grid-cols-4 gap-2">
+        <div className="rounded-2xl bg-primary p-3 text-center text-white shadow-sm">
           <div className="text-xs opacity-80">本周</div>
-          <div className="mt-1 text-2xl font-bold tabular-nums">{stats.week}</div>
-          <div className="text-[11px] opacity-70">节</div>
+          <div className="mt-0.5 text-xl font-bold tabular-nums">{stats.week}</div>
         </div>
-        <div className="rounded-2xl bg-white p-4 text-center shadow-sm">
+        <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
           <div className="text-xs text-neutral-400">本月</div>
-          <div className="mt-1 text-2xl font-bold tabular-nums">{stats.month}</div>
-          <div className="text-[11px] text-neutral-400">节</div>
+          <div className="mt-0.5 text-xl font-bold tabular-nums">{stats.month}</div>
         </div>
-        <div className="rounded-2xl bg-white p-4 text-center shadow-sm">
+        <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
+          <div className="text-xs text-neutral-400">年度</div>
+          <div className="mt-0.5 text-xl font-bold tabular-nums">{stats.year}</div>
+        </div>
+        <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
           <div className="text-xs text-neutral-400">累计</div>
-          <div className="mt-1 text-2xl font-bold tabular-nums">{stats.total}</div>
-          <div className="text-[11px] text-neutral-400">节</div>
+          <div className="mt-0.5 text-xl font-bold tabular-nums">{stats.total}</div>
         </div>
       </div>
       <p className="mt-1.5 px-1 text-xs text-neutral-400">
-        本周 {formatShort(weekStart)} - {formatShort(weekEnd)} · 本月 {formatShort(monthStart)} - {formatShort(monthEnd)}
+        本周 {formatShort(weekStart)} - {formatShort(weekEnd)} · 本月 {formatShort(monthStart)} - {formatShort(monthEnd)} · 年度 {formatShort(yearStart)} - {formatShort(yearEnd)}
       </p>
+
+      {/* 按课程类型统计 */}
+      {categoryEntries.length > 0 && (
+        <>
+          <h2 className="mt-5 px-1 text-sm font-semibold text-neutral-500">按课程类型统计</h2>
+          <div className="mt-2 divide-y divide-neutral-100 rounded-2xl bg-white shadow-sm">
+            {categoryEntries.map(([categoryId, s]) => (
+              <CategoryStatRow key={categoryId} categoryId={categoryId} stats={s} />
+            ))}
+          </div>
+        </>
+      )}
 
       {/* 各课程剩余 */}
       <h2 className="mt-5 px-1 text-sm font-semibold text-neutral-500">各课程剩余课时</h2>

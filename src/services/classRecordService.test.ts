@@ -34,7 +34,7 @@ async function setupCourse(total = 50, used = 0) {
   const course = await addCourse({
     childId: child.id,
     name: '少儿英语',
-    category: 'english',
+    categoryId: 'cat-english',
     totalLessons: total,
     usedLessons: used,
   })

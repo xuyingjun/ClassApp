@@ -1,11 +1,13 @@
 import { Link } from 'react-router-dom'
 import type { Course } from '../../types/course'
 import { remainingLessons } from '../../types/course'
-import { COURSE_STATUS_META, categoryEmoji, courseColorValue } from '../../constants'
+import { COURSE_STATUS_META, courseColorValue } from '../../constants'
+import { useCourseCategories } from '../../hooks/useCourseCategories'
 import ProgressBar from '../ui/ProgressBar'
 
 // 课程卡片：名称/老师 + 剩余课时 + 进度 + 有效期/状态
 export default function CourseCard({ course }: { course: Course }) {
+  const { categoryIcon } = useCourseCategories()
   const remaining = remainingLessons(course)
   const usedPct = course.totalLessons > 0 ? course.usedLessons / course.totalLessons : 0
   const color = courseColorValue(course.color)
@@ -20,7 +22,7 @@ export default function CourseCard({ course }: { course: Course }) {
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl"
           style={{ backgroundColor: `${color}1A` }}
         >
-          {categoryEmoji(course.category)}
+          {categoryIcon(course.categoryId)}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">

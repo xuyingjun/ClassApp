@@ -19,7 +19,8 @@ import {
   type UpdateCourseInput,
 } from '../../services/courseService'
 import { remainingLessons, type Course } from '../../types/course'
-import { COURSE_STATUS_META, WEEKDAY_LABELS, categoryEmoji, categoryLabel, courseColorValue } from '../../constants'
+import { COURSE_STATUS_META, WEEKDAY_LABELS, courseColorValue } from '../../constants'
+import { useCourseCategories } from '../../hooks/useCourseCategories'
 import { formatTimeRange } from '../../utils/date'
 
 function InfoRow({ label, children }: { label: string; children: ReactNode }) {
@@ -96,6 +97,7 @@ export default function CourseDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
+  const { categoryIcon, categoryName } = useCourseCategories()
   const course = useCourse(id)
   const recordCount = useLiveQuery(
     async () => (id ? await db.classRecords.where('courseId').equals(id).count() : null),
@@ -172,7 +174,7 @@ export default function CourseDetailPage() {
               className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-3xl"
               style={{ backgroundColor: `${color}1A` }}
             >
-              {categoryEmoji(course.category)}
+              {categoryIcon(course.categoryId)}
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
@@ -184,7 +186,7 @@ export default function CourseDetailPage() {
                 )}
               </div>
               <div className="mt-0.5 text-xs text-neutral-400">
-                {categoryLabel(course.category)}
+                {categoryName(course.categoryId)}
                 {course.teacher ? ` · ${course.teacher}` : ''}
               </div>
             </div>

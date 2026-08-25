@@ -9,6 +9,7 @@ import RecordListPage from './pages/records/RecordListPage'
 import StatsPage from './pages/StatsPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import ChildrenPage from './pages/settings/ChildrenPage'
+import CategoriesPage from './pages/settings/CategoriesPage'
 import BackupPage from './pages/settings/BackupPage'
 import AboutPage from './pages/settings/AboutPage'
 
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/courses/:id/edit" element={<CourseEditPage />} />
         <Route path="/courses/:id" element={<CourseDetailPage />} />
         <Route path="/settings/children" element={<ChildrenPage />} />
+        <Route path="/settings/categories" element={<CategoriesPage />} />
         <Route path="/settings/backup" element={<BackupPage />} />
         <Route path="/settings/about" element={<AboutPage />} />
         <Route path="*" element={<HomePage />} />
