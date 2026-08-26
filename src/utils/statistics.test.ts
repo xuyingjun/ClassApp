@@ -8,6 +8,7 @@ function makeRecord(
   lessonCount = 1,
   status: ClassRecordStatus = 'completed',
   courseId = 'k1',
+  source?: ClassRecord['source'],
 ): ClassRecord {
   return {
     id: `r${++seq}`,
@@ -16,6 +17,7 @@ function makeRecord(
     date,
     lessonCount,
     status,
+    source,
     createdAt: '',
     updatedAt: '',
   }
@@ -43,6 +45,14 @@ describe('computeStats（统计口径：completed + makeup）', () => {
 
   it('空记录全为 0', () => {
     expect(computeStats([], '2026-08-24')).toEqual({ week: 0, month: 0, year: 0, total: 0 })
+  })
+
+  it('初始汇总课时只计入累计，不计入周期', () => {
+    const stats = computeStats(
+      [makeRecord('2026-08-24', 12, 'completed', 'k1', 'initial')],
+      '2026-08-24',
+    )
+    expect(stats).toEqual({ week: 0, month: 0, year: 0, total: 12 })
   })
 
   it('跨月边界：月末周日归属正确', () => {
@@ -86,6 +96,15 @@ describe('computeStatsByCategory（按课程类型统计）', () => {
     expect(piano.year).toBe(1)
     expect(piano.total).toBe(3)
     expect(result.has('k-ghost')).toBe(false)
+  })
+
+  it('分类初始汇总只计入累计', () => {
+    const result = computeStatsByCategory(
+      [makeRecord('2026-08-24', 12, 'completed', 'k1', 'initial')],
+      new Map([['k1', 'cat-english']]),
+      '2026-08-24',
+    )
+    expect(result.get('cat-english')).toEqual({ week: 0, month: 0, year: 0, total: 12 })
   })
 
   it('无计入记录时返回空 Map', () => {

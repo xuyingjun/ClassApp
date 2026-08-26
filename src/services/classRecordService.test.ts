@@ -13,6 +13,7 @@ import {
   recordLesson,
   updateClassRecord,
   DuplicateRecordError,
+  InvalidRecordCourseError,
 } from './classRecordService'
 import { todayStr } from '../utils/date'
 
@@ -82,6 +83,20 @@ describe('一键记课与课时一致性（需求场景 3-10）', () => {
     await recordLesson({ childId: course.childId, courseId: course.id, date: todayStr(), startTime: '10:00' })
     await recordLesson({ childId: course.childId, courseId: course.id, date: todayStr(), startTime: '14:00' })
     expect((await db.courses.get(course.id))!.usedLessons).toBe(2)
+  })
+
+  it('拒绝把记录写入其他孩子的课程', async () => {
+    const { course } = await setupCourse(50, 0)
+    const otherChild = await addChild({ name: '小安' })
+
+    await expect(
+      recordLesson({
+        childId: otherChild.id,
+        courseId: course.id,
+        date: todayStr(),
+      }),
+    ).rejects.toBeInstanceOf(InvalidRecordCourseError)
+    expect(await db.classRecords.where('courseId').equals(course.id).count()).toBe(0)
   })
 
   it('场景 8：手动补录（无时间不查重）', async () => {

@@ -6,6 +6,8 @@ import { recordLesson } from './classRecordService'
 import { backupSchemaV2, clearAllData, exportAll, importBackup } from './backupService'
 import { todayStr } from '../utils/date'
 
+const timestamp = '2026-08-24T08:00:00.000Z'
+
 async function clearDb() {
   await db.transaction(
     'rw',
@@ -88,8 +90,8 @@ describe('数据备份/恢复（需求场景 13-16）', () => {
     const v1 = {
       app: 'tongke',
       version: 1,
-      exportedAt: '',
-      children: [{ id: 'ch1', name: '小雨', createdAt: '', updatedAt: '' }],
+      exportedAt: timestamp,
+      children: [{ id: 'ch1', name: '小雨', createdAt: timestamp, updatedAt: timestamp }],
       courses: [
         {
           id: 'co1',
@@ -99,8 +101,8 @@ describe('数据备份/恢复（需求场景 13-16）', () => {
           totalLessons: 50,
           usedLessons: 0,
           status: 'active',
-          createdAt: '',
-          updatedAt: '',
+          createdAt: timestamp,
+          updatedAt: timestamp,
         },
       ],
       classRecords: [],
@@ -135,7 +137,7 @@ describe('数据备份/恢复（需求场景 13-16）', () => {
     const future = {
       app: 'tongke',
       version: 99,
-      exportedAt: '',
+      exportedAt: timestamp,
       children: [],
       courses: [],
       classRecords: [],
@@ -151,7 +153,7 @@ describe('数据备份/恢复（需求场景 13-16）', () => {
     const backup = {
       app: 'tongke',
       version: 1,
-      exportedAt: '',
+      exportedAt: timestamp,
       children: [],
       courses: [],
       classRecords: [
@@ -162,15 +164,15 @@ describe('数据备份/恢复（需求场景 13-16）', () => {
           date: '2026-08-24',
           lessonCount: 1,
           status: 'completed',
-          createdAt: '',
-          updatedAt: '',
+          createdAt: timestamp,
+          updatedAt: timestamp,
         },
       ],
       settings: [],
     }
     const result = await importBackup(backup)
     expect(result.ok).toBe(true)
-    expect(result.orphanRecords).toBe(1)
+    expect(result.skippedItems).toBe(1)
     expect(await db.classRecords.count()).toBe(0)
   })
 
@@ -178,7 +180,7 @@ describe('数据备份/恢复（需求场景 13-16）', () => {
     const base = {
       app: 'tongke',
       version: 2,
-      exportedAt: '',
+      exportedAt: timestamp,
       children: [],
       courses: [],
       courseCategories: [],
@@ -213,11 +215,76 @@ describe('数据备份/恢复（需求场景 13-16）', () => {
             totalLessons: 10,
             usedLessons: 0,
             status: 'active',
-            createdAt: '',
-            updatedAt: '',
+            createdAt: timestamp,
+            updatedAt: timestamp,
           },
         ],
       }).success,
     ).toBe(false)
+  })
+
+  it('导入时按有效记录重算课时与结课状态', async () => {
+    const child = await addChild({ name: '小雨' })
+    const course = await addCourse({
+      childId: child.id,
+      name: '游泳课',
+      categoryId: 'cat-sports',
+      totalLessons: 2,
+      usedLessons: 0,
+    })
+    await recordLesson({ childId: child.id, courseId: course.id, date: todayStr(), startTime: '10:00' })
+    await recordLesson({ childId: child.id, courseId: course.id, date: todayStr(), startTime: '11:00' })
+    const backup = await exportAll()
+    backup.courses[0]!.usedLessons = 0
+    backup.courses[0]!.status = 'active'
+
+    const result = await importBackup(backup)
+
+    expect(result.ok).toBe(true)
+    expect((await db.courses.get(course.id))!.usedLessons).toBe(2)
+    expect((await db.courses.get(course.id))!.status).toBe('completed')
+  })
+
+  it('导入时跳过孤儿课程与跨孩子记录', async () => {
+    const firstChild = await addChild({ name: '小雨' })
+    const secondChild = await addChild({ name: '小安' })
+    const course = await addCourse({
+      childId: firstChild.id,
+      name: '英语课',
+      categoryId: 'cat-english',
+      totalLessons: 10,
+      usedLessons: 0,
+    })
+    const backup = await exportAll()
+    backup.courses.push({ ...course, id: 'orphan-course', childId: 'missing-child' })
+    backup.classRecords.push({
+      id: 'wrong-owner-record',
+      childId: secondChild.id,
+      courseId: course.id,
+      date: todayStr(),
+      lessonCount: 1,
+      status: 'completed',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+
+    const result = await importBackup(backup)
+
+    expect(result.ok).toBe(true)
+    expect(result.skippedItems).toBe(2)
+    expect(await db.courses.get('orphan-course')).toBeUndefined()
+    expect(await db.classRecords.get('wrong-owner-record')).toBeUndefined()
+  })
+
+  it('事务写入失败时保留原有数据', async () => {
+    const child = await addChild({ name: '原有孩子' })
+    const backup = await exportAll()
+    backup.children.push({ ...backup.children[0]!, name: '重复主键' })
+
+    const result = await importBackup(backup)
+
+    expect(result.ok).toBe(false)
+    expect(await db.children.get(child.id)).toBeTruthy()
+    expect(await db.children.count()).toBe(1)
   })
 })

@@ -38,9 +38,14 @@ export default function AboutPage() {
     setResourceBusy(true)
     try {
       const keys = await caches.keys()
-      await Promise.all(keys.map((key) => caches.delete(key)))
+      await Promise.all(keys.filter((key) => key.startsWith('tongke-')).map((key) => caches.delete(key)))
       const registrations = await navigator.serviceWorker?.getRegistrations()
-      await Promise.all((registrations ?? []).map((registration) => registration.unregister()))
+      const appScope = new URL('./', window.location.href).href
+      await Promise.all(
+        (registrations ?? [])
+          .filter((registration) => registration.scope === appScope)
+          .map((registration) => registration.unregister()),
+      )
       setUpdateMessage('应用资源已刷新，正在重新加载')
       window.location.reload()
     } finally {

@@ -50,6 +50,7 @@ export async function addCourse(input: CourseInput): Promise<Course> {
           date: input.startDate && input.startDate <= todayStr() ? input.startDate : todayStr(),
         lessonCount: input.usedLessons,
         status: 'completed',
+        source: 'initial',
         note: '创建课程时录入的已用课时',
         createdAt: now,
         updatedAt: now,
@@ -105,10 +106,25 @@ export async function recalculateCourseUsage(courseId: string): Promise<void> {
 }
 
 export async function recalculateAllCourseUsage(): Promise<void> {
-  const courses = await db.courses.toArray()
-  for (const c of courses) {
-    await recalculateCourseUsage(c.id)
-  }
+  await db.transaction('rw', db.classRecords, db.courses, async () => {
+    const courses = await db.courses.toArray()
+    const now = new Date().toISOString()
+    const today = todayStr()
+    for (const course of courses) {
+      const records = await db.classRecords.where('courseId').equals(course.id).toArray()
+      const usedLessons = records
+        .filter((record) => isCountedStatus(record.status))
+        .reduce((sum, record) => sum + record.lessonCount, 0)
+      await db.courses.update(course.id, {
+        usedLessons,
+        status:
+          course.status === 'inactive'
+            ? 'inactive'
+            : deriveStatus({ ...course, usedLessons }, today),
+        updatedAt: now,
+      })
+    }
+  })
 }
 
 // 记录变更后同步课程：重算课时 + 推进/回退结课状态（停用课程不动）
@@ -122,14 +138,16 @@ export async function afterRecordChange(courseId: string): Promise<void> {
   }
 }
 
-// 启动时：active → expired 单向转移（不复活）
+// 启动时按课时与有效期同步所有非停用课程状态
 export async function refreshCourseStatus(): Promise<void> {
   const today = todayStr()
   await db.transaction('rw', db.courses, async () => {
-    const actives = await db.courses.where('status').equals('active').toArray()
-    for (const c of actives) {
-      if (c.expireDate && c.expireDate < today) {
-        await db.courses.update(c.id, { status: 'expired' })
+    const courses = await db.courses.toArray()
+    for (const course of courses) {
+      if (course.status === 'inactive') continue
+      const status = deriveStatus(course, today)
+      if (course.status !== status) {
+        await db.courses.update(course.id, { status })
       }
     }
   })

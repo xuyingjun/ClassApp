@@ -91,8 +91,10 @@ export default function BackupPage() {
       const result = await importBackup(importSummary.json)
       if (result.ok) {
         setImportSummary(null)
-        toast.showToast(result.orphanRecords ? `数据恢复成功（跳过 ${result.orphanRecords} 条无效记录）` : '数据恢复成功', 'success')
+        toast.showToast(result.skippedItems ? `数据恢复成功（跳过 ${result.skippedItems} 条无效数据）` : '数据恢复成功', 'success')
       } else toast.showToast(result.error ?? '导入失败', 'error')
+    } catch {
+      toast.showToast('导入失败，当前数据未受影响', 'error')
     } finally {
       setImportBusy(false)
     }
@@ -119,7 +121,7 @@ export default function BackupPage() {
     setRepairBusy(true)
     try {
       await recalculateAllCourseUsage()
-      toast.showToast('已按上课记录重新统计课时', 'success')
+      toast.showToast('已按上课记录重新统计课时和课程状态', 'success')
     } catch {
       toast.showToast('操作失败，请重试', 'error')
     } finally {

@@ -3,7 +3,7 @@ import { db } from '../db/database'
 import { BACKUP_APP_NAME, BACKUP_VERSION, type BackupData } from '../types/backup'
 import type { Course } from '../types/course'
 import { OLD_CATEGORY_KEY_TO_ID } from '../constants'
-import { recalculateAllCourseUsage, refreshCourseStatus } from './courseService'
+import { deriveStatus } from './courseService'
 import { buildDefaultCategories } from './courseCategoryService'
 import { todayStr } from '../utils/date'
 import { SETTING_KEYS } from '../types/setting'
@@ -11,19 +11,29 @@ import { SETTING_KEYS } from '../types/setting'
 // —— zod 结构校验（导入安全的第一道防线，Phase 0 §5.6）——
 
 const idSchema = z.string().min(1)
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
-const timeSchema = z.string().regex(/^\d{2}:\d{2}$/)
+const nonEmptyStringSchema = z.string().trim().min(1)
+const dateSchema = z.string().refine((value) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+}, '日期格式无效')
+const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, '时间格式无效')
+const timestampSchema = z.string().refine(
+  (value) => /^\d{4}-\d{2}-\d{2}T/.test(value) && !Number.isNaN(Date.parse(value)),
+  '时间戳格式无效',
+)
 
 const childSchema = z
   .object({
     id: idSchema,
-    name: z.string(),
+    name: nonEmptyStringSchema,
     avatar: z.string().optional(),
     birthday: dateSchema.optional(),
     gender: z.enum(['male', 'female', 'other']).optional(),
     note: z.string().optional(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
+    createdAt: timestampSchema,
+    updatedAt: timestampSchema,
   })
   .strict()
 
@@ -38,41 +48,51 @@ const weeklySlotSchema = z
 const courseCategorySchema = z
   .object({
     id: idSchema,
-    name: z.string(),
+    name: nonEmptyStringSchema,
     icon: z.string(),
     color: z.string(),
-    sortOrder: z.number(),
+    sortOrder: z.number().int(),
     isDefault: z.boolean(),
     status: z.enum(['active', 'inactive']),
-    createdAt: z.string(),
-    updatedAt: z.string(),
+    createdAt: timestampSchema,
+    updatedAt: timestampSchema,
   })
   .strict()
 
 const courseBase = {
   id: idSchema,
   childId: idSchema,
-  name: z.string(),
+  name: nonEmptyStringSchema,
   teacher: z.string().optional(),
   institution: z.string().optional(),
-  totalLessons: z.number(),
-  usedLessons: z.number(),
-  price: z.number().optional(),
+  totalLessons: z.number().int().positive(),
+  usedLessons: z.number().nonnegative(),
+  price: z.number().nonnegative().optional(),
   startDate: dateSchema.optional(),
   expireDate: dateSchema.optional(),
-  defaultDuration: z.number().optional(),
+  defaultDuration: z.number().positive().optional(),
   color: z.string().optional(),
   weeklySchedule: z.array(weeklySlotSchema).optional(),
   note: z.string().optional(),
   status: z.enum(['active', 'completed', 'expired', 'inactive']),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: timestampSchema,
+  updatedAt: timestampSchema,
 }
 
-const courseSchemaV2 = z.object({ ...courseBase, categoryId: idSchema }).strict()
+function hasValidCourseDateRange(course: { startDate?: string; expireDate?: string }): boolean {
+  return !course.startDate || !course.expireDate || course.startDate <= course.expireDate
+}
+
+const courseSchemaV2 = z
+  .object({ ...courseBase, categoryId: idSchema })
+  .strict()
+  .refine(hasValidCourseDateRange, { message: '课程开始日期不能晚于到期日期' })
 
 // v1 遗留：category 为枚举 key
-const courseSchemaV1 = z.object({ ...courseBase, category: z.string() }).strict()
+const courseSchemaV1 = z
+  .object({ ...courseBase, category: z.string() })
+  .strict()
+  .refine(hasValidCourseDateRange, { message: '课程开始日期不能晚于到期日期' })
 
 const classRecordSchema = z
   .object({
@@ -82,11 +102,12 @@ const classRecordSchema = z
     date: dateSchema,
     startTime: timeSchema.optional(),
     endTime: timeSchema.optional(),
-    lessonCount: z.number(),
+    lessonCount: z.number().positive(),
     status: z.enum(['completed', 'cancelled', 'makeup', 'absent']),
     note: z.string().optional(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
+    source: z.enum(['initial', 'manual']).optional(),
+    createdAt: timestampSchema,
+    updatedAt: timestampSchema,
   })
   .strict()
 
@@ -96,7 +117,7 @@ export const backupSchemaV2 = z
   .object({
     app: z.literal(BACKUP_APP_NAME),
     version: z.number().int().positive(),
-    exportedAt: z.string(),
+    exportedAt: timestampSchema,
     children: z.array(childSchema),
     courses: z.array(courseSchemaV2),
     classRecords: z.array(classRecordSchema),
@@ -109,7 +130,7 @@ const backupSchemaV1 = z
   .object({
     app: z.literal(BACKUP_APP_NAME),
     version: z.literal(1),
-    exportedAt: z.string(),
+    exportedAt: timestampSchema,
     children: z.array(childSchema),
     courses: z.array(courseSchemaV1),
     classRecords: z.array(classRecordSchema),
@@ -120,7 +141,7 @@ const backupSchemaV1 = z
 export interface ImportResult {
   ok: boolean
   error?: string // 校验失败原因（此时当前数据零改动）
-  orphanRecords?: number // 被跳过的孤儿记录数
+  skippedItems?: number // 被跳过的孤儿课程或无效关联记录数
 }
 
 export interface BackupSummary {
@@ -163,23 +184,33 @@ export function inspectBackup(
 // —— 导出 ——
 
 export async function exportAll(): Promise<BackupData> {
-  const [children, courses, classRecords, courseCategories, settings] = await Promise.all([
-    db.children.toArray(),
-    db.courses.toArray(),
-    db.classRecords.toArray(),
-    db.courseCategories.toArray(),
-    db.settings.toArray(),
-  ])
-  return {
-    app: BACKUP_APP_NAME,
-    version: BACKUP_VERSION,
-    exportedAt: new Date().toISOString(),
-    children,
-    courses,
-    classRecords,
-    courseCategories,
-    settings,
-  }
+  return db.transaction(
+    'r',
+    db.children,
+    db.courses,
+    db.classRecords,
+    db.courseCategories,
+    db.settings,
+    async () => {
+      const [children, courses, classRecords, courseCategories, settings] = await Promise.all([
+        db.children.toArray(),
+        db.courses.toArray(),
+        db.classRecords.toArray(),
+        db.courseCategories.toArray(),
+        db.settings.toArray(),
+      ])
+      return {
+        app: BACKUP_APP_NAME,
+        version: BACKUP_VERSION,
+        exportedAt: new Date().toISOString(),
+        children,
+        courses,
+        classRecords,
+        courseCategories,
+        settings,
+      }
+    },
+  )
 }
 
 // 下载 JSON 文件（iOS Safari 会弹出分享/存储面板）
@@ -258,17 +289,41 @@ export async function importBackup(json: unknown): Promise<ImportResult> {
     data.courseCategories.find((c) => c.isDefault && c.name === '其他')?.id ??
     data.courseCategories[0]?.id ??
     'cat-other'
-  const fixedCourses = data.courses.map((c) =>
-    categoryIds.has(c.categoryId) ? c : { ...c, categoryId: fallbackCategoryId },
-  )
-
-  // ③ 引用完整性：孤儿记录（指向不存在的课程/孩子）警告并跳过
   const childIds = new Set(data.children.map((c) => c.id))
-  const courseIds = new Set(fixedCourses.map((c) => c.id))
+  const fixedCourses = data.courses
+    .filter((course) => childIds.has(course.childId))
+    .map((course) =>
+      categoryIds.has(course.categoryId) ? course : { ...course, categoryId: fallbackCategoryId },
+    )
+
+  // ③ 引用完整性：孤儿课程和记录警告并跳过，记录必须属于课程对应的孩子
+  const courseById = new Map(fixedCourses.map((course) => [course.id, course]))
   const validRecords = data.classRecords.filter(
-    (r) => childIds.has(r.childId) && courseIds.has(r.courseId),
+    (record) => courseById.get(record.courseId)?.childId === record.childId,
   )
-  const orphanRecords = data.classRecords.length - validRecords.length
+  const skippedItems = data.courses.length - fixedCourses.length + data.classRecords.length - validRecords.length
+
+  const usedLessonsByCourse = new Map<string, number>()
+  for (const record of validRecords) {
+    if (record.status !== 'completed' && record.status !== 'makeup') continue
+    usedLessonsByCourse.set(
+      record.courseId,
+      (usedLessonsByCourse.get(record.courseId) ?? 0) + record.lessonCount,
+    )
+  }
+  const now = new Date().toISOString()
+  const today = todayStr()
+  const finalCourses = fixedCourses.map((course) => {
+    const recalculated = {
+      ...course,
+      usedLessons: usedLessonsByCourse.get(course.id) ?? 0,
+      updatedAt: now,
+    }
+    return {
+      ...recalculated,
+      status: course.status === 'inactive' ? 'inactive' : deriveStatus(recalculated, today),
+    } as Course
+  })
 
   // ④ 单事务「清空 + 写入」：任何异常自动回滚，不破坏当前数据
   try {
@@ -289,7 +344,7 @@ export async function importBackup(json: unknown): Promise<ImportResult> {
         ])
         await db.children.bulkAdd(data.children)
         // weekday 已被 zod 校验为 0-6 整数，此处断言为字面量联合类型是安全的
-        await db.courses.bulkAdd(fixedCourses as Course[])
+        await db.courses.bulkAdd(finalCourses)
         await db.classRecords.bulkAdd(validRecords)
         await db.courseCategories.bulkAdd(data.courseCategories)
         await db.settings.bulkAdd(data.settings)
@@ -299,10 +354,7 @@ export async function importBackup(json: unknown): Promise<ImportResult> {
     return { ok: false, error: '导入失败，当前数据未受影响' }
   }
 
-  // ⑤ 导入后全量重算 + 状态刷新，保证一致性
-  await recalculateAllCourseUsage()
-  await refreshCourseStatus()
-  return { ok: true, orphanRecords: orphanRecords > 0 ? orphanRecords : undefined }
+  return { ok: true, skippedItems: skippedItems > 0 ? skippedItems : undefined }
 }
 
 // —— 清空 ——

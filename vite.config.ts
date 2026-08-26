@@ -32,6 +32,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        cacheId: 'tongke',
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
       },
     }),

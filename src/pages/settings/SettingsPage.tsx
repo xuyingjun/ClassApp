@@ -5,11 +5,15 @@ import { useCourses } from '../../hooks/useCourses'
 import { useClassRecords } from '../../hooks/useClassRecords'
 import { useToast } from '../../hooks/useToast'
 import { remainingLessons } from '../../types/course'
-import { isCountedStatus } from '../../types/classRecord'
+import { isCountedStatus, isInitialRecord } from '../../types/classRecord'
 import { RECORD_STATUS_META } from '../../constants'
 import { formatDisplay, monthRange, todayStr } from '../../utils/date'
 import BottomSheet from '../../components/ui/BottomSheet'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+
+function escapeCsv(value: string | number): string {
+  return `"${String(value).replace(/"/g, '""')}"`
+}
 
 export default function SettingsPage() {
   const { childList, activeChild, selectChild } = useActiveChild()
@@ -31,7 +35,7 @@ export default function SettingsPage() {
   const monthCount = useMemo(() => {
     let count = 0
     for (const r of records ?? []) {
-      if (!isCountedStatus(r.status)) continue
+      if (!isCountedStatus(r.status) || isInitialRecord(r)) continue
       if (r.date >= monthStart && r.date <= monthEnd) count += r.lessonCount
     }
     return count
@@ -65,16 +69,15 @@ export default function SettingsPage() {
       const timeStr = r.startTime ? (r.endTime ? `${r.startTime}-${r.endTime}` : r.startTime) : ''
       const statusLabel = RECORD_STATUS_META[r.status]?.label ?? r.status
       const courseName = courseMap.get(r.courseId) ?? '未知课程'
-      const cleanNote = (r.note ?? '').replace(/"/g, '""')
       return [
-        `"${r.date}"`,
-        `"${timeStr}"`,
-        `"${activeChild.name}"`,
-        `"${courseName}"`,
-        `"${r.lessonCount}"`,
-        `"${statusLabel}"`,
-        `"${cleanNote}"`,
-      ].join(',')
+        r.date,
+        timeStr,
+        activeChild.name,
+        courseName,
+        r.lessonCount,
+        statusLabel,
+        r.note ?? '',
+      ].map(escapeCsv).join(',')
     })
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n')

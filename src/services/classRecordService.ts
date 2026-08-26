@@ -5,6 +5,7 @@ import type { ClassRecord, ClassRecordStatus } from '../types/classRecord'
 import { afterRecordChange } from './courseService'
 
 export class DuplicateRecordError extends Error {}
+export class InvalidRecordCourseError extends Error {}
 
 export interface ClassRecordInput {
   childId: string
@@ -15,6 +16,13 @@ export interface ClassRecordInput {
   lessonCount?: number
   status: ClassRecordStatus
   note?: string
+}
+
+async function assertCourseOwnership(input: Pick<ClassRecordInput, 'childId' | 'courseId'>): Promise<void> {
+  const course = await db.courses.get(input.courseId)
+  if (!course || course.childId !== input.childId) {
+    throw new InvalidRecordCourseError('课程不存在或不属于当前孩子')
+  }
 }
 
 // 查重（DB 层防线，Phase 0 §5.1）：
@@ -45,6 +53,7 @@ export function recordLesson(
 // 事务内 查重 → 插入 → 重算课时 + 同步结课状态（原子性）
 export async function addClassRecord(input: ClassRecordInput): Promise<ClassRecord> {
   return db.transaction('rw', db.classRecords, db.courses, async () => {
+    await assertCourseOwnership(input)
     await assertNoDuplicate(input)
     const now = new Date().toISOString()
     const record: ClassRecord = {
@@ -56,6 +65,7 @@ export async function addClassRecord(input: ClassRecordInput): Promise<ClassReco
       endTime: input.endTime,
       lessonCount: input.lessonCount ?? 1,
       status: input.status,
+      source: 'manual',
       note: input.note,
       createdAt: now,
       updatedAt: now,
@@ -71,6 +81,7 @@ export async function updateClassRecord(id: string, input: ClassRecordInput): Pr
   await db.transaction('rw', db.classRecords, db.courses, async () => {
     const old = await db.classRecords.get(id)
     if (!old) return
+    await assertCourseOwnership(input)
     await assertNoDuplicate(input, id)
     await db.classRecords.update(id, { ...input, updatedAt: new Date().toISOString() })
     await afterRecordChange(old.courseId)

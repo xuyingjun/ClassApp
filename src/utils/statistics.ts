@@ -1,5 +1,5 @@
 import type { ClassRecord } from '../types/classRecord'
-import { isCountedStatus } from '../types/classRecord'
+import { isCountedStatus, isInitialRecord } from '../types/classRecord'
 import { monthRange, weekRange } from './date'
 
 export interface LessonStats {
@@ -28,6 +28,7 @@ export function computeStats(records: ClassRecord[], today: string): LessonStats
   for (const r of records) {
     if (!isCountedStatus(r.status)) continue
     total += r.lessonCount
+    if (isInitialRecord(r)) continue
     if (r.date >= yearStart && r.date <= yearEnd) year += r.lessonCount
     if (r.date >= monthStart && r.date <= monthEnd) month += r.lessonCount
     if (r.date >= weekStart && r.date <= weekEnd) week += r.lessonCount
@@ -62,6 +63,7 @@ export function computeStatsByCategory(
       map.set(categoryId, s)
     }
     s.total += r.lessonCount
+    if (isInitialRecord(r)) continue
     if (r.date >= yearStart && r.date <= yearEnd) s.year += r.lessonCount
     if (r.date >= monthStart && r.date <= monthEnd) s.month += r.lessonCount
     if (r.date >= weekStart && r.date <= weekEnd) s.week += r.lessonCount

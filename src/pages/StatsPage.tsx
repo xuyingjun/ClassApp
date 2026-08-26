@@ -12,7 +12,7 @@ import EmptyState from '../components/ui/EmptyState'
 import ProgressBar from '../components/ui/ProgressBar'
 import Button from '../components/ui/Button'
 import type { Course } from '../types/course'
-import { isCountedStatus } from '../types/classRecord'
+import { isCountedStatus, isInitialRecord } from '../types/classRecord'
 
 // 近 6 个月月份列表辅助计算
 function getLast6Months(todayStr: string) {
@@ -141,6 +141,7 @@ export default function StatsPage() {
     return (records ?? [])
       .filter((record) => {
         if (!isCountedStatus(record.status)) return false
+        if (period !== 'total' && isInitialRecord(record)) return false
         return period === 'total' || (record.date >= start && record.date <= end)
       })
       .sort(
@@ -152,15 +153,15 @@ export default function StatsPage() {
 
   // 出勤率与上课健康度统计
   const attendanceStats = useMemo(() => {
-    const list = records ?? []
+    const list = (records ?? []).filter((record) => !isInitialRecord(record))
     let completed = 0
     let makeup = 0
     let cancelled = 0
     let absent = 0
 
     for (const r of list) {
-      if (r.status === 'completed') completed += r.lessonCount
-      else if (r.status === 'makeup') makeup += r.lessonCount
+      if (r.status === 'completed') completed += 1
+      else if (r.status === 'makeup') makeup += 1
       else if (r.status === 'cancelled') cancelled += 1
       else if (r.status === 'absent') absent += 1
     }
@@ -190,7 +191,7 @@ export default function StatsPage() {
     }
 
     for (const r of list) {
-      if (!isCountedStatus(r.status)) continue
+      if (!isCountedStatus(r.status) || isInitialRecord(r)) continue
       const prefix = r.date.slice(0, 7) // YYYY-MM
       if (map.has(prefix)) {
         map.set(prefix, (map.get(prefix) ?? 0) + r.lessonCount)
