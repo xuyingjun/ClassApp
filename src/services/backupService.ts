@@ -197,16 +197,16 @@ export function downloadBackup(data: BackupData): void {
 
 // 复制到剪贴板（备用通道）
 export async function copyBackupToClipboard(data: BackupData): Promise<boolean> {
-
-  export async function markBackupCompleted(): Promise<void> {
-    await db.settings.put({ key: SETTING_KEYS.lastBackupAt, value: new Date().toISOString() })
-  }
   try {
     await navigator.clipboard.writeText(JSON.stringify(data))
     return true
   } catch {
     return false
   }
+}
+
+export async function markBackupCompleted(): Promise<void> {
+  await db.settings.put({ key: SETTING_KEYS.lastBackupAt, value: new Date().toISOString() })
 }
 
 // —— 导入 ——
