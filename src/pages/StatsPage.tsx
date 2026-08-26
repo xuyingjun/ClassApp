@@ -446,16 +446,3 @@ export default function StatsPage() {
     </div>
   )
 }
-      </div>
-      {activeCourses.length === 0 && archivedCourses.length === 0 && (
-        <div className="mt-2">
-          <EmptyState emoji="🗂️" title="没有可展示的课程" />
-        </div>
-      )}
-
-      <p className="mt-4 px-1 text-center text-xs text-neutral-400">
-        统计口径：已完成 + 补课（课时求和），取消与缺席不计入
-      </p>
-    </div>
-  )
-}
