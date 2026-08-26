@@ -50,8 +50,13 @@ function CourseProgressStatRow({ course }: { course: Course }) {
             </span>
           )}
         </span>
-        <span className="shrink-0 text-xs text-neutral-500 tabular-nums">
-          已消耗 <span className="font-bold text-neutral-800">{course.usedLessons}</span> / {course.totalLessons} 节 ({pct}%)
+        <span className="shrink-0 text-xs tabular-nums">
+          <span className="text-neutral-400">已消耗 </span>
+          <span className="font-bold text-primary">{course.usedLessons}</span>
+          <span className="text-neutral-300"> / </span>
+          <span className="text-neutral-400">总课时 </span>
+          <span className="font-bold text-blue-600">{course.totalLessons}</span>
+          <span className="ml-1 text-neutral-400">({pct}%)</span>
         </span>
       </div>
       <ProgressBar

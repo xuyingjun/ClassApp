@@ -39,7 +39,13 @@ export default function CourseCard({ course }: { course: Course }) {
         </div>
         <div className="shrink-0 text-right">
           <span className="text-xl font-bold text-primary tabular-nums">{remaining}</span>
-          <span className="text-xs text-neutral-400"> / {course.totalLessons} 节</span>
+          <span className="text-xs text-neutral-400"> / </span>
+          <span className="text-sm font-bold text-blue-600 tabular-nums">{course.totalLessons}</span>
+          <span className="text-xs text-neutral-400"> 节</span>
+          <div className="mt-0.5 flex justify-end gap-2 text-[10px]">
+            <span className="text-primary">剩余</span>
+            <span className="text-blue-600">总课时</span>
+          </div>
         </div>
       </div>
       <div className="mt-3">
@@ -47,7 +53,9 @@ export default function CourseCard({ course }: { course: Course }) {
         <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
           <span>{course.expireDate ? `有效期至 ${course.expireDate}` : '无有效期'}</span>
           <span className="tabular-nums">
-            已用 {course.usedLessons} / {course.totalLessons}
+            已用 <span className="font-semibold text-primary">{course.usedLessons}</span>
+            {' / '}
+            总计 <span className="font-semibold text-blue-600">{course.totalLessons}</span>
           </span>
         </div>
       </div>

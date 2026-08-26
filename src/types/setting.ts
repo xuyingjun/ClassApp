@@ -7,4 +7,5 @@ export interface Setting {
 export const SETTING_KEYS = {
   selectedChildId: 'selectedChildId',
   lastBackupAt: 'lastBackupAt',
+  backupReminderSnoozedUntil: 'backupReminderSnoozedUntil',
 } as const

@@ -9,6 +9,7 @@ import { isCountedStatus } from '../../types/classRecord'
 import { RECORD_STATUS_META } from '../../constants'
 import { formatDisplay, monthRange, todayStr } from '../../utils/date'
 import BottomSheet from '../../components/ui/BottomSheet'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 
 export default function SettingsPage() {
   const { childList, activeChild, selectChild } = useActiveChild()
@@ -16,6 +17,7 @@ export default function SettingsPage() {
   const records = useClassRecords(activeChild?.id)
   const toast = useToast()
   const [switchOpen, setSheetOpen] = useState(false)
+  const [pendingTool, setPendingTool] = useState<'csv' | 'report' | null>(null)
 
   const today = todayStr()
   const [monthStart, monthEnd] = monthRange(today)
@@ -124,6 +126,13 @@ export default function SettingsPage() {
 
   const multiChild = (childList?.length ?? 0) > 1
 
+  const confirmToolAction = () => {
+    const action = pendingTool
+    setPendingTool(null)
+    if (action === 'csv') handleExportCSV()
+    else if (action === 'report') void handleCopyReport()
+  }
+
   return (
     <div className="space-y-4 p-4 pb-8">
       <h1 className="text-xl font-bold">我的</h1>
@@ -228,7 +237,7 @@ export default function SettingsPage() {
         <div className="divide-y divide-neutral-100 rounded-2xl bg-white shadow-sm">
           <button
             type="button"
-            onClick={handleExportCSV}
+            onClick={() => setPendingTool('csv')}
             className="flex min-h-14 w-full items-center justify-between px-4 py-3 text-left active:bg-neutral-50"
           >
             <span className="flex items-center gap-3 text-[15px] font-medium">
@@ -240,7 +249,7 @@ export default function SettingsPage() {
 
           <button
             type="button"
-            onClick={() => void handleCopyReport()}
+            onClick={() => setPendingTool('report')}
             className="flex min-h-14 w-full items-center justify-between px-4 py-3 text-left active:bg-neutral-50"
           >
             <span className="flex items-center gap-3 text-[15px] font-medium">
@@ -303,6 +312,20 @@ export default function SettingsPage() {
           ))}
         </div>
       </BottomSheet>
+
+      <ConfirmDialog
+        open={pendingTool !== null}
+        title={pendingTool === 'csv' ? '导出上课记录' : '复制月度简报'}
+        message={
+          pendingTool === 'csv'
+            ? `确认导出「${activeChild?.name ?? ''}」的全部上课记录为 CSV 文件吗？`
+            : `确认生成并复制「${activeChild?.name ?? ''}」的本月消课简报吗？`
+        }
+        confirmLabel={pendingTool === 'csv' ? '确认导出' : '确认复制'}
+        confirmVariant="primary"
+        onCancel={() => setPendingTool(null)}
+        onConfirm={confirmToolAction}
+      />
     </div>
   )
 }

@@ -37,6 +37,10 @@ export default function HomePage() {
   const records = useClassRecords(activeChild?.id)
   const { categoryIcon } = useCourseCategories()
   const lastBackupAt = useLiveQuery(() => db.settings.get(SETTING_KEYS.lastBackupAt), [])
+  const backupSnoozedUntil = useLiveQuery(
+    () => db.settings.get(SETTING_KEYS.backupReminderSnoozedUntil),
+    [],
+  )
   const [childSheetOpen, setChildSheetOpen] = useState(false)
 
   const today = todayStr()
@@ -122,10 +126,27 @@ export default function HomePage() {
 
   const reminders = useMemo(() => computeReminders(courses ?? [], today), [courses, today])
   const backupReminder = useMemo(() => {
-    if (!lastBackupAt?.value) return '还没有备份数据，建议立即导出备份'
+    const snoozedUntil = String(backupSnoozedUntil?.value ?? '')
+    if (snoozedUntil >= today) return null
+    if (!lastBackupAt?.value) {
+      const firstCreatedAt = [...(courses ?? []), ...(records ?? [])]
+        .map((item) => item.createdAt)
+        .sort()[0]
+      if (!firstCreatedAt) return null
+      const usedDays = Math.floor((Date.now() - new Date(firstCreatedAt).getTime()) / 86400000)
+      return usedDays >= 7 ? '使用已满 7 天，建议备份一次数据' : null
+    }
     const days = Math.floor((Date.now() - new Date(String(lastBackupAt.value)).getTime()) / 86400000)
     return days >= 30 ? `已有 ${days} 天未备份数据，建议导出备份` : null
-  }, [lastBackupAt])
+  }, [backupSnoozedUntil, courses, lastBackupAt, records, today])
+
+  const snoozeBackupReminder = async () => {
+    await db.settings.put({
+      key: SETTING_KEYS.backupReminderSnoozedUntil,
+      value: addDays(today, 7),
+    })
+    toast.showToast('将在 7 天后再次提醒', 'success')
+  }
 
   // —— 加载态 ——
   if (childList === undefined) return <Loading />
@@ -244,9 +265,26 @@ export default function HomePage() {
         </section>
       )}
       {backupReminder && (
-        <Link to="/settings/backup" className="block rounded-2xl bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-700">
-          {backupReminder}，去数据备份 →
-        </Link>
+        <div className="rounded-2xl bg-sky-50 px-4 py-3 text-sky-700">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm leading-6">{backupReminder}</p>
+            <button
+              type="button"
+              aria-label="稍后提醒备份"
+              title="7 天后提醒"
+              onClick={() => void snoozeBackupReminder()}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-lg text-sky-500 active:bg-sky-100"
+            >
+              ×
+            </button>
+          </div>
+          <Link
+            to="/settings/backup"
+            className="mt-1 inline-flex min-h-9 items-center text-sm font-semibold active:opacity-70"
+          >
+            前往备份 →
+          </Link>
+        </div>
       )}
     </div>
   )
