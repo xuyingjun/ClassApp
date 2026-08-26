@@ -4,11 +4,11 @@ import { useActiveChild } from '../hooks/useActiveChild'
 import { useCourses } from '../hooks/useCourses'
 import { useClassRecords } from '../hooks/useClassRecords'
 import { useToast } from '../hooks/useToast'
+import { useCourseCategories } from '../hooks/useCourseCategories'
 import { computeReminders } from '../services/reminderService'
-import { remainingLessons } from '../types/course'
-import { isCourseAvailableOnDate, remainingLessons } from '../types/course'
-import { courseColorValue } from '../constants'
-import { getWeekday, todayStr } from '../utils/date'
+import { isCourseAvailableOnDate, remainingLessons, type Course } from '../types/course'
+import { WEEKDAY_LABELS } from '../constants'
+import { addDays, formatShort, formatTimeRange, getWeekday, todayStr } from '../utils/date'
 import { db } from '../db/database'
 import { SETTING_KEYS } from '../types/setting'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -20,12 +20,22 @@ import EmptyState from '../components/ui/EmptyState'
 import Button from '../components/ui/Button'
 import BottomSheet from '../components/ui/BottomSheet'
 
+interface UpcomingClassItem {
+  key: string
+  date: string
+  dayLabel: string
+  course: Course
+  startTime?: string
+  endTime?: string
+}
+
 export default function HomePage() {
   const { childList, activeChild } = useActiveChild()
   const toast = useToast()
   const navigate = useNavigate()
   const courses = useCourses(activeChild?.id)
   const records = useClassRecords(activeChild?.id)
+  const { categoryIcon } = useCourseCategories()
   const lastBackupAt = useLiveQuery(() => db.settings.get(SETTING_KEYS.lastBackupAt), [])
   const [childSheetOpen, setChildSheetOpen] = useState(false)
 
@@ -72,7 +82,44 @@ export default function HomePage() {
     return items.sort((a, b) => (a.startTime ?? '99:99').localeCompare(b.startTime ?? '99:99'))
   }, [courses, records, today])
 
-  const activeCourses = useMemo(() => (courses ?? []).filter((c) => c.status === 'active'), [courses])
+  // —— 未来 3 天课程预告 ——
+  const upcomingItems = useMemo<UpcomingClassItem[]>(() => {
+    const courseList = courses ?? []
+    const items: UpcomingClassItem[] = []
+
+    for (let i = 1; i <= 3; i++) {
+      const targetDate = addDays(today, i)
+      const weekday = getWeekday(targetDate)
+      const dayLabel =
+        i === 1
+          ? `明天 (${WEEKDAY_LABELS[weekday]})`
+          : i === 2
+            ? `后天 (${WEEKDAY_LABELS[weekday]})`
+            : `${formatShort(targetDate)} (${WEEKDAY_LABELS[weekday]})`
+
+      for (const course of courseList) {
+        if (!isCourseAvailableOnDate(course, targetDate)) continue
+        for (const slot of course.weeklySchedule ?? []) {
+          if (slot.weekday !== weekday) continue
+          items.push({
+            key: `${targetDate}-${course.id}-${slot.startTime}`,
+            date: targetDate,
+            dayLabel,
+            course,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+          })
+        }
+      }
+    }
+
+    return items.sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) ||
+        (a.startTime ?? '99:99').localeCompare(b.startTime ?? '99:99'),
+    )
+  }, [courses, today])
+
   const reminders = useMemo(() => computeReminders(courses ?? [], today), [courses, today])
   const backupReminder = useMemo(() => {
     if (!lastBackupAt?.value) return '还没有备份数据，建议立即导出备份'
@@ -152,24 +199,29 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 课程余额 */}
-      {activeCourses.length > 0 && (
+      {/* 未来 3 天课程预告 */}
+      {upcomingItems.length > 0 && (
         <section>
-          <h2 className="text-sm font-semibold text-neutral-500">课程余额</h2>
+          <h2 className="text-sm font-semibold text-neutral-500">未来 3 天预告</h2>
           <div className="mt-2 divide-y divide-neutral-100 rounded-2xl bg-white shadow-sm">
-            {activeCourses.map((c) => (
-              <div key={c.id} className="flex min-h-12 items-center justify-between px-4 py-2.5">
-                <span className="flex items-center gap-2 text-[15px]">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: courseColorValue(c.color) }}
-                  />
-                  <span className="truncate">{c.name}</span>
-                </span>
-                <span className="shrink-0 text-[15px]">
-                  剩{' '}
-                  <span className="text-lg font-bold text-primary">{remainingLessons(c)}</span>{' '}
-                  节
+            {upcomingItems.map((item) => (
+              <div key={item.key} className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="text-lg shrink-0">{categoryIcon(item.course.categoryId)}</span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[15px] font-medium truncate">{item.course.name}</span>
+                      {item.course.teacher && (
+                        <span className="text-xs text-neutral-400 truncate">({item.course.teacher})</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-neutral-400 mt-0.5">
+                      {item.dayLabel} · {formatTimeRange(item.startTime, item.endTime) || '时间未设置'}
+                    </div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-xs font-medium text-neutral-500 bg-neutral-100 px-2 py-1 rounded-lg tabular-nums">
+                  剩 {remainingLessons(item.course)} 节
                 </span>
               </div>
             ))}
