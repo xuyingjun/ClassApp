@@ -241,8 +241,8 @@ export default function HomePage() {
                     </div>
                   </div>
                 </div>
-                <span className="shrink-0 text-xs font-medium text-neutral-500 bg-neutral-100 px-2 py-1 rounded-lg tabular-nums">
-                  剩 {remainingLessons(item.course)} 节
+                <span className="shrink-0 rounded-lg bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-500 tabular-nums">
+                  剩 <span className="font-bold text-primary">{remainingLessons(item.course)}</span> 节
                 </span>
               </div>
             ))}

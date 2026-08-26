@@ -40,7 +40,7 @@ export default function CourseCard({ course }: { course: Course }) {
         <div className="shrink-0 text-right">
           <span className="text-xl font-bold text-primary tabular-nums">{remaining}</span>
           <span className="text-xs text-neutral-400"> / </span>
-          <span className="text-sm font-bold text-blue-600 tabular-nums">{course.totalLessons}</span>
+          <span className="text-xl font-bold text-blue-600 tabular-nums">{course.totalLessons}</span>
           <span className="text-xs text-neutral-400"> 节</span>
           <div className="mt-0.5 flex justify-end gap-2 text-[10px]">
             <span className="text-primary">剩余</span>
