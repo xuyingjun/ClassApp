@@ -171,7 +171,7 @@ export default function HomePage() {
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-neutral-500">今日课程</h2>
           <Link
-            to="/records"
+            to="/records?view=calendar"
             className="flex min-h-10 items-center gap-0.5 rounded-lg px-2 text-xs font-medium text-primary active:bg-primary-soft"
           >
             补录 ＋

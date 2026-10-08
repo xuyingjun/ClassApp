@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useActiveChild } from '../../hooks/useActiveChild'
 import { useCourses } from '../../hooks/useCourses'
 import { useClassRecords } from '../../hooks/useClassRecords'
@@ -30,7 +30,8 @@ export default function RecordListPage() {
   const courses = useCourses(activeChild?.id)
   const records = useClassRecords(activeChild?.id)
   const toast = useToast()
-  const [view, setView] = useState<View>('list')
+  const [searchParams] = useSearchParams()
+  const [view, setView] = useState<View>(() => (searchParams.get('view') as View) || 'list')
   const [courseFilter, setCourseFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [rangeFilter, setRangeFilter] = useState<RangeFilter>('all')
@@ -116,9 +117,17 @@ export default function RecordListPage() {
   }
   if (records === undefined || courses === undefined) return <Loading />
 
-  const openNew = () => {
-    setEditing(null)
-    setSheetOpen(true)
+  // 顶部「补录」按钮：直击「忘记录入今天」痛点 —— 跳到日历视图并选今天，
+  // 让用户直接看到当天的「待补录」卡片，一键落库，无需手填课程信息
+  const jumpToTodayCalendar = () => {
+    setView('calendar')
+    setSelectedDate(today)
+    const y = Number(today.slice(0, 4))
+    const m = Number(today.slice(5, 7))
+    if (y !== calYear || m !== calMonth) {
+      setCalYear(y)
+      setCalMonth(m)
+    }
   }
   const openNewForDate = (date: string) => {
     setPresetDate(date)
@@ -145,8 +154,8 @@ export default function RecordListPage() {
     <div className="p-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">记录</h1>
-        <Button className="min-h-11 px-4 text-sm" onClick={openNew}>
-          ＋ 补录
+        <Button className="min-h-11 px-4 text-sm" onClick={jumpToTodayCalendar}>
+          今日补录
         </Button>
       </div>
 
