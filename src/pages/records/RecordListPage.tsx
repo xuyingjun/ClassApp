@@ -14,7 +14,9 @@ import EmptyState from '../../components/ui/EmptyState'
 import BottomSheet from '../../components/ui/BottomSheet'
 import type { ClassRecord } from '../../types/classRecord'
 import { RECORD_STATUS_META } from '../../constants'
-import { formatDisplay, monthRange, todayStr, weekRange } from '../../utils/date'
+import { addDays, formatDisplay, monthRange, todayStr, weekRange } from '../../utils/date'
+import { buildScheduledItems } from '../../utils/schedule'
+import TodayClassCard from '../../components/course/TodayClassCard'
 
 type RangeFilter = 'all' | 'today' | 'week' | 'month'
 type View = 'list' | 'calendar'
@@ -80,6 +82,16 @@ export default function RecordListPage() {
         .filter((r) => r.date === selectedDate)
         .sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? '')),
     [records, selectedDate],
+  )
+
+  // 日历：所选日期的待补录排课项（onlyActive=false 含已结课/停用但当时排过的课；
+  // 只展示无 record 的 slot，已记录的在 dayRecords 区显示，避免重复）
+  const pendingItems = useMemo(
+    () =>
+      buildScheduledItems(courses ?? [], records ?? [], selectedDate, { onlyActive: false }).filter(
+        (i) => !i.record,
+      ),
+    [courses, records, selectedDate],
   )
 
   if (childList === undefined) return <Loading />
@@ -222,7 +234,27 @@ export default function RecordListPage() {
           />
           <section>
             <div className="flex items-center justify-between px-1">
-              <h2 className="text-xs font-medium text-neutral-400">{formatDisplay(selectedDate)}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xs font-medium text-neutral-400">{formatDisplay(selectedDate)}</h2>
+                {selectedDate > today && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(addDays(selectedDate, -1))}
+                    className="flex min-h-8 items-center rounded-md px-1.5 text-xs font-medium text-neutral-400 active:bg-neutral-100"
+                  >
+                    ← 前一天
+                  </button>
+                )}
+                {selectedDate < today && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(addDays(selectedDate, 1))}
+                    className="flex min-h-8 items-center rounded-md px-1.5 text-xs font-medium text-neutral-400 active:bg-neutral-100"
+                  >
+                    后一天 →
+                  </button>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => openNewForDate(selectedDate)}
@@ -231,12 +263,22 @@ export default function RecordListPage() {
                 ＋ 补录这一天
               </button>
             </div>
-            {dayRecords.length === 0 ? (
-              <div className="mt-1">
-                <EmptyState emoji="🍃" title="这一天没有上课记录" />
+
+            {/* 当天排课（待补录）：根据周课表自动推导，只展示无 record 的 slot */}
+            {pendingItems.length > 0 && (
+              <div className="mt-2 space-y-2">
+                <h3 className="px-1 text-xs font-medium text-amber-600">
+                  当天排课（待补录 {pendingItems.length}）
+                </h3>
+                {pendingItems.map((item) => (
+                  <TodayClassCard key={item.key} item={item} date={selectedDate} />
+                ))}
               </div>
-            ) : (
-              <div className="mt-1 divide-y divide-neutral-100 rounded-2xl bg-white shadow-sm">
+            )}
+
+            {/* 已记录：可点开编辑 */}
+            {dayRecords.length > 0 ? (
+              <div className="mt-2 divide-y divide-neutral-100 rounded-2xl bg-white shadow-sm">
                 {dayRecords.map((r) => (
                   <RecordItem
                     key={r.id}
@@ -246,7 +288,11 @@ export default function RecordListPage() {
                   />
                 ))}
               </div>
-            )}
+            ) : pendingItems.length === 0 ? (
+              <div className="mt-1">
+                <EmptyState emoji="🍃" title="这一天没有上课记录" />
+              </div>
+            ) : null}
           </section>
         </div>
       )}

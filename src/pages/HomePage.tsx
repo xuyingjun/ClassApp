@@ -9,12 +9,13 @@ import { computeReminders } from '../services/reminderService'
 import { isCourseAvailableOnDate, remainingLessons, type Course } from '../types/course'
 import { WEEKDAY_LABELS } from '../constants'
 import { addDays, formatShort, formatTimeRange, getWeekday, todayStr } from '../utils/date'
+import { buildScheduledItems } from '../utils/schedule'
 import { db } from '../db/database'
 import { SETTING_KEYS } from '../types/setting'
 import { useLiveQuery } from 'dexie-react-hooks'
 import ChildSwitcher from '../components/child/ChildSwitcher'
 import ChildForm from '../components/child/ChildForm'
-import TodayClassCard, { type TodayClassItem } from '../components/course/TodayClassCard'
+import TodayClassCard from '../components/course/TodayClassCard'
 import Loading from '../components/ui/Loading'
 import EmptyState from '../components/ui/EmptyState'
 import Button from '../components/ui/Button'
@@ -46,45 +47,10 @@ export default function HomePage() {
   const today = todayStr()
 
   // —— 今日课程：周课表匹配今天 + 今天无课表的记录 ——
-  const todayItems = useMemo<TodayClassItem[]>(() => {
-    const courseList = courses ?? []
-    const todayRecords = (records ?? []).filter((r) => r.date === today)
-    const weekday = getWeekday(today)
-    const usedRecordIds = new Set<string>()
-    const items: TodayClassItem[] = []
-
-    for (const course of courseList) {
-      if (!isCourseAvailableOnDate(course, today)) continue
-      for (const slot of course.weeklySchedule ?? []) {
-        if (slot.weekday !== weekday) continue
-        const record = todayRecords.find(
-          (r) => r.courseId === course.id && r.startTime === slot.startTime,
-        )
-        if (record) usedRecordIds.add(record.id)
-        items.push({
-          key: `${course.id}-${slot.startTime}`,
-          course,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          record,
-        })
-      }
-    }
-    // 今天有记录但无对应课表时段（如补录/补课）
-    for (const r of todayRecords) {
-      if (usedRecordIds.has(r.id)) continue
-      const course = courseList.find((c) => c.id === r.courseId)
-      if (!course) continue
-      items.push({
-        key: r.id,
-        course,
-        startTime: r.startTime,
-        endTime: r.endTime,
-        record: r,
-      })
-    }
-    return items.sort((a, b) => (a.startTime ?? '99:99').localeCompare(b.startTime ?? '99:99'))
-  }, [courses, records, today])
+  const todayItems = useMemo(
+    () => buildScheduledItems(courses ?? [], records ?? [], today),
+    [courses, records, today],
+  )
 
   // —— 未来 3 天课程预告 ——
   const upcomingItems = useMemo<UpcomingClassItem[]>(() => {

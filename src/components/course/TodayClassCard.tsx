@@ -22,7 +22,8 @@ export interface TodayClassItem {
 
 // 今日课程卡片：时间 + 课程 + 老师 + 状态 / 「✓ 上完课」按钮
 // 一键记课：UI 立即禁用（防连点）+ DB 事务查重（双层防线，Phase 0 §5.1）
-export default function TodayClassCard({ item }: { item: TodayClassItem }) {
+// date 默认 todayStr()，补录场景传入目标日期即可
+export default function TodayClassCard({ item, date }: { item: TodayClassItem; date?: string }) {
   const toast = useToast()
   const { categoryIcon } = useCourseCategories()
   const [busy, setBusy] = useState(false)
@@ -37,7 +38,7 @@ export default function TodayClassCard({ item }: { item: TodayClassItem }) {
       await recordLesson({
         childId: course.childId,
         courseId: course.id,
-        date: todayStr(),
+        date: date ?? todayStr(),
         startTime,
         endTime,
       })
@@ -60,7 +61,7 @@ export default function TodayClassCard({ item }: { item: TodayClassItem }) {
       await addClassRecord({
         childId: course.childId,
         courseId: course.id,
-        date: todayStr(),
+        date: date ?? todayStr(),
         startTime,
         endTime,
         status,
